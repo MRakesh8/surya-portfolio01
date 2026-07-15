@@ -216,10 +216,10 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Outfit', sans-serif; line-height: 1.1; }
 .hero-right { flex: 0 0 auto; max-width: 340px; display: flex; flex-direction: column; gap: 20px; }
 
 .hero-title {
-  font-size: clamp(3.2rem, 6vw, 5.8rem);
+  font-size: clamp(2.8rem, 4.5vw, 4.06rem);
   font-weight: 900;
   letter-spacing: -0.035em;
-  line-height: 1.0;
+  line-height: 0.9;
   color: #fff;
   text-shadow: 1px 1px 4px rgba(255,255,255,0.2);
 }

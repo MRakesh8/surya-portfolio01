@@ -457,8 +457,8 @@ strong { color: var(--text); }
 }
 .badge-star { color: var(--orange); }
 .hero-title {
-  font-size: clamp(3rem, 7vw, 5.8rem);
-  font-weight: 900; letter-spacing: -0.045em; line-height: 1.04;
+  font-size: clamp(2.8rem, 4.5vw, 4.06rem);
+  font-weight: 900; letter-spacing: -0.045em; line-height: 0.9;
   margin-bottom: 24px;
   text-shadow: 0 0 60px rgba(121,50,236,0.2);
 }
