@@ -347,16 +347,37 @@ if (editorIsAdmin) {
           var publicUrl = urlResult.data.publicUrl;
           
           // Directly replace the media
-          if (currentTarget.tagName === 'IMG') {
-            currentTarget.src = publicUrl;
-          } else if (currentTarget.tagName === 'VIDEO') {
+          const isVideo = publicUrl.toLowerCase().endsWith('.mp4') || publicUrl.toLowerCase().endsWith('.webm') || publicUrl.includes('video') || publicUrl.includes('.webm') || publicUrl.includes('.mov');
+          
+          if (isVideo) {
+            if (currentTarget.tagName !== 'VIDEO') {
+              const newVideo = document.createElement('video');
+              newVideo.autoplay = true;
+              newVideo.loop = true;
+              newVideo.muted = true;
+              newVideo.setAttribute('playsinline', '');
+              newVideo.className = currentTarget.className;
+              newVideo.id = currentTarget.id;
+              currentTarget.replaceWith(newVideo);
+              currentTarget = newVideo;
+            }
             var source = currentTarget.querySelector('source');
             if (source) {
               source.src = publicUrl;
-              currentTarget.load();
             } else {
               currentTarget.src = publicUrl;
             }
+            currentTarget.load();
+          } else {
+            if (currentTarget.tagName !== 'IMG') {
+              const newImg = document.createElement('img');
+              newImg.loading = 'lazy';
+              newImg.className = currentTarget.className;
+              newImg.id = currentTarget.id;
+              currentTarget.replaceWith(newImg);
+              currentTarget = newImg;
+            }
+            currentTarget.src = publicUrl;
           }
           saveState();
         } catch (err) {
