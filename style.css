@@ -304,11 +304,11 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Outfit', sans-serif; line-height: 1.1; }
   position: relative; border-radius: 26px; overflow: hidden;
   aspect-ratio: 9/16; background: #111;
 }
-.phone-screen img {
+.phone-screen img, .phone-screen video {
   width: 100%; height: 100%; object-fit: cover;
   transition: transform 0.55s ease;
 }
-.phone-card:hover .phone-screen img { transform: scale(1.06); }
+.phone-card:hover .phone-screen img, .phone-card:hover .phone-screen video { transform: scale(1.06); }
 .raw-img { filter: saturate(0.2) brightness(0.45); }
 
 .phone-overlay {
@@ -431,7 +431,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Outfit', sans-serif; line-height: 1.1; }
 }
 @keyframes floatY { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 .about-phone-screen { border-radius: 28px; overflow: hidden; aspect-ratio: 9/16; background: #111; }
-.about-phone-img { width: 100%; height: 100%; object-fit: cover; }
+.about-phone-img, .about-phone-screen video { width: 100%; height: 100%; object-fit: cover; }
 
 .about-features { display: flex; flex-direction: column; gap: 0; }
 .about-feature {
@@ -632,7 +632,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Outfit', sans-serif; line-height: 1.1; }
   box-shadow: 0 32px 80px rgba(0,0,0,0.8);
 }
 .testi-phone-screen { border-radius: 26px; overflow: hidden; aspect-ratio: 9/16; background: #111; position: relative; }
-.testi-phone-img { width: 100%; height: 100%; object-fit: cover; }
+.testi-phone-img, .testi-phone-screen video { width: 100%; height: 100%; object-fit: cover; }
 .testi-progress { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 3; display: flex; gap: 4px; }
 .tp-bar { flex: 1; height: 2.5px; background: rgba(255,255,255,0.3); border-radius: 2px; overflow: hidden; }
 .tp-fill { height: 100%; width: 65%; background: #fff; border-radius: 2px; animation: tpAnim 8s linear infinite; }
