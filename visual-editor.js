@@ -9,6 +9,7 @@ if (editorIsAdmin) {
   // Undo/Redo State
   let historyStack = [];
   let historyIndex = -1;
+  let currentTarget = null;
 
   const saveState = () => {
     const clone = document.body.cloneNode(true);
@@ -65,6 +66,35 @@ if (editorIsAdmin) {
       
       const pageName = window.location.pathname.split('/').pop() || 'index.html';
       window.parent.postMessage({ type: 'SAVE_CONTENT', content: clone.innerHTML, page: pageName }, '*');
+    } else if (event.data.type === 'MEDIA_SELECTED' && event.data.url) {
+      const url = event.data.url;
+      const isVideo = url.toLowerCase().endsWith('.mp4') || url.toLowerCase().endsWith('.webm') || url.toLowerCase().endsWith('.mov') || url.includes('.mp4') || url.includes('.webm') || url.includes('.mov');
+      
+      if (currentTarget) {
+        if (isVideo) {
+          const newVideo = document.createElement('video');
+          newVideo.autoplay = true;
+          newVideo.loop = true;
+          newVideo.muted = true;
+          newVideo.setAttribute('playsinline', '');
+          newVideo.style.display = 'block';
+          newVideo.src = url;
+          currentTarget.replaceWith(newVideo);
+          currentTarget = newVideo;
+          currentTarget.load();
+          let playPromise = currentTarget.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(e => console.log('Autoplay prevented:', e));
+          }
+        } else {
+          const newImg = document.createElement('img');
+          newImg.loading = 'lazy';
+          newImg.src = url;
+          currentTarget.replaceWith(newImg);
+          currentTarget = newImg;
+        }
+        saveState();
+      }
     }
   });
 
@@ -166,7 +196,7 @@ if (editorIsAdmin) {
     toolbar.id = 'admin-floating-toolbar';
     document.body.appendChild(toolbar);
 
-    let currentTarget = null;
+    currentTarget = null;
     let initialTextContent = '';
     let hideTimeout;
 
@@ -318,67 +348,8 @@ if (editorIsAdmin) {
 
     const handleReplaceMedia = () => {
       toolbar.style.display = 'none';
-      
-      // Directly open a file picker inside the iframe — no cross-frame messaging needed
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = 'image/*,video/*';
-      fileInput.style.display = 'none';
-      document.body.appendChild(fileInput);
-      
-      fileInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) { fileInput.remove(); return; }
-        
-        // Capture file type before async operations
-        const fileIsVideo = file.type.startsWith('video/');
-        
-        try {
-          var supabaseUrl = 'https://sdvcpkexawlihomyhkkp.supabase.co';
-          var supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkdmNwa2V4YXdsaWhvbXloa2twIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMzk2ODAsImV4cCI6MjA5OTYxNTY4MH0.g02cUmn305wiUZ4aNfKr43SaeveI1FcmPwTmBia5dh4';
-          var sb = window.supabase.createClient(supabaseUrl, supabaseKey);
-          
-          var ext = file.name.split('.').pop();
-          var fileName = Math.random().toString(36).substring(2, 15) + '_' + Date.now() + '.' + ext;
-          
-          var uploadResult = await sb.storage.from('media').upload(fileName, file);
-          if (uploadResult.error) throw uploadResult.error;
-          
-          var urlResult = sb.storage.from('media').getPublicUrl(fileName);
-          var publicUrl = urlResult.data.publicUrl;
-          
-          // Replace the media element
-          if (fileIsVideo) {
-            const newVideo = document.createElement('video');
-            newVideo.autoplay = true;
-            newVideo.loop = true;
-            newVideo.muted = true;
-            newVideo.setAttribute('playsinline', '');
-            newVideo.style.display = 'block';
-            newVideo.src = publicUrl;
-            currentTarget.replaceWith(newVideo);
-            currentTarget = newVideo;
-            currentTarget.load();
-            let playPromise = currentTarget.play();
-            if (playPromise !== undefined) {
-              playPromise.catch(e => console.log('Autoplay prevented:', e));
-            }
-          } else {
-            const newImg = document.createElement('img');
-            newImg.loading = 'lazy';
-            newImg.src = publicUrl;
-            currentTarget.replaceWith(newImg);
-            currentTarget = newImg;
-          }
-          saveState();
-        } catch (err) {
-          alert('Upload failed: ' + err.message);
-        } finally {
-          fileInput.remove();
-        }
-      });
-      
-      fileInput.click();
+      // Send message to parent admin panel to open Media Library
+      window.parent.postMessage({ type: 'REQUEST_MEDIA' }, '*');
     };
 
     const handleDelete = () => {
