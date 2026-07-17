@@ -290,7 +290,6 @@ if (editorIsAdmin) {
       }
     });
 
-    document.addEventListener('contextmenu', e => e.preventDefault());
 
     const handleEditText = () => {
       toolbar.style.display = 'none';
@@ -331,59 +330,71 @@ if (editorIsAdmin) {
         const file = e.target.files[0];
         if (!file) { fileInput.remove(); return; }
         
-        try {
-          // Use the Supabase client already loaded by fetchData.js
-          var supabaseUrl = 'https://sdvcpkexawlihomyhkkp.supabase.co';
-          var supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkdmNwa2V4YXdsaWhvbXloa2twIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMzk2ODAsImV4cCI6MjA5OTYxNTY4MH0.g02cUmn305wiUZ4aNfKr43SaeveI1FcmPwTmBia5dh4';
-          var sb = window.supabase.createClient(supabaseUrl, supabaseKey);
+          // Show uploading indicator on the toolbar button that was clicked
+          const replaceBtn = document.getElementById('tb-replace');
+          const originalText = replaceBtn ? replaceBtn.textContent : '';
+          if (replaceBtn) replaceBtn.textContent = 'Uploading...';
           
-          var ext = file.name.split('.').pop();
-          var fileName = Math.random().toString(36).substring(2, 15) + '_' + Date.now() + '.' + ext;
-          
-          var uploadResult = await sb.storage.from('media').upload(fileName, file);
-          if (uploadResult.error) throw uploadResult.error;
-          
-          var urlResult = sb.storage.from('media').getPublicUrl(fileName);
-          var publicUrl = urlResult.data.publicUrl;
-          
-          // Directly replace the media
-          const isVideo = publicUrl.toLowerCase().endsWith('.mp4') || publicUrl.toLowerCase().endsWith('.webm') || publicUrl.includes('video') || publicUrl.includes('.webm') || publicUrl.includes('.mov');
-          
-          if (isVideo) {
-            if (currentTarget.tagName !== 'VIDEO') {
-              const newVideo = document.createElement('video');
-              newVideo.autoplay = true;
-              newVideo.loop = true;
-              newVideo.muted = true;
-              newVideo.setAttribute('playsinline', '');
-              newVideo.className = currentTarget.className;
-              newVideo.id = currentTarget.id;
-              currentTarget.replaceWith(newVideo);
-              currentTarget = newVideo;
-            }
-            var source = currentTarget.querySelector('source');
-            if (source) {
-              source.src = publicUrl;
+          try {
+            var supabaseUrl = 'https://sdvcpkexawlihomyhkkp.supabase.co';
+            var supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkdmNwa2V4YXdsaWhvbXloa2twIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMzk2ODAsImV4cCI6MjA5OTYxNTY4MH0.g02cUmn305wiUZ4aNfKr43SaeveI1FcmPwTmBia5dh4';
+            var sb = window.supabase.createClient(supabaseUrl, supabaseKey);
+            
+            var ext = file.name.split('.').pop();
+            var fileName = Math.random().toString(36).substring(2, 15) + '_' + Date.now() + '.' + ext;
+            
+            var uploadResult = await sb.storage.from('media').upload(fileName, file);
+            if (uploadResult.error) throw uploadResult.error;
+            
+            var urlResult = sb.storage.from('media').getPublicUrl(fileName);
+            var publicUrl = urlResult.data.publicUrl;
+            
+            // Directly replace the media
+            const isVideo = publicUrl.toLowerCase().endsWith('.mp4') || publicUrl.toLowerCase().endsWith('.webm') || publicUrl.includes('video') || publicUrl.includes('.webm') || publicUrl.includes('.mov') || publicUrl.includes('.mp4');
+            
+            if (isVideo) {
+              if (currentTarget.tagName !== 'VIDEO') {
+                const newVideo = document.createElement('video');
+                newVideo.autoplay = true;
+                newVideo.loop = true;
+                newVideo.muted = true;
+                newVideo.setAttribute('playsinline', '');
+                if (currentTarget.className) newVideo.className = currentTarget.className;
+                if (currentTarget.id) newVideo.id = currentTarget.id;
+                currentTarget.replaceWith(newVideo);
+                currentTarget = newVideo;
+              }
+              var source = currentTarget.querySelector('source');
+              if (source) {
+                source.src = publicUrl;
+              } else {
+                currentTarget.src = publicUrl;
+              }
+              currentTarget.load();
+              // Explicitly play to ensure autoplay works in all browsers
+              let playPromise = currentTarget.play();
+              if (playPromise !== undefined) {
+                playPromise.catch(e => console.log('Autoplay prevented:', e));
+              }
             } else {
+              if (currentTarget.tagName !== 'IMG') {
+                const newImg = document.createElement('img');
+                newImg.loading = 'lazy';
+                if (currentTarget.className) newImg.className = currentTarget.className;
+                if (currentTarget.id) newImg.id = currentTarget.id;
+                currentTarget.replaceWith(newImg);
+                currentTarget = newImg;
+              }
               currentTarget.src = publicUrl;
             }
-            currentTarget.load();
-          } else {
-            if (currentTarget.tagName !== 'IMG') {
-              const newImg = document.createElement('img');
-              newImg.loading = 'lazy';
-              newImg.className = currentTarget.className;
-              newImg.id = currentTarget.id;
-              currentTarget.replaceWith(newImg);
-              currentTarget = newImg;
-            }
-            currentTarget.src = publicUrl;
+            saveState();
+          } catch (err) {
+            alert('Upload failed: ' + err.message);
+          } finally {
+            if (replaceBtn) replaceBtn.textContent = originalText;
+            fileInput.remove();
+            hideToolbar();
           }
-          saveState();
-        } catch (err) {
-          alert('Upload failed: ' + err.message);
-        }
-        fileInput.remove();
       });
       
       fileInput.click();
