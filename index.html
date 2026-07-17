@@ -8,7 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=3">
+  <script src="index.js" defer></script>
 </head>
 <body>
 
@@ -28,6 +29,7 @@
       <a href="#faqs">FAQs</a>
     </div>
     <a href="#contact" class="btn-book-call">Book a Call</a>
+    <button class="sound-toggle" id="soundToggle" title="Toggle UI Sound Effects">🔊</button>
     <button class="hamburger" id="hamburger" aria-label="Menu">
       <span></span><span></span><span></span>
     </button>
@@ -43,6 +45,7 @@
   <a href="#contact" class="mobile-link">Contact</a>
   <a href="#faqs" class="mobile-link">FAQs</a>
   <a href="#contact" class="btn-book-call" style="margin-top:24px">Book a Call</a>
+  <button class="sound-toggle" id="mobileSoundToggle" style="margin: 16px auto 0; display: grid;">🔊 Sound Off</button>
 </div>
 
 <!-- ====== HERO ====== -->
@@ -76,9 +79,9 @@
   <div class="phone-gallery-wrap">
     <div class="phone-gallery-track" id="phoneTrack">
       <!-- EDITED 1 -->
-      <div class="phone-card phone-edited">
+      <div class="phone-card phone-edited" data-tilt>
         <div class="phone-screen">
-          <img src="https://framerusercontent.com/images/47wthKW9QtyzWe0HNbIOQJNmqR0.png?width=400" alt="Creator 1" loading="lazy">
+          <video src="https://framerusercontent.com/assets/X3H7H2QZN3YVznG5VHcgCqImgg.mp4" loop muted playsinline autoplay></video>
           <div class="phone-overlay"></div>
           <div class="phone-badges">
             <span class="phone-badge badge-orange"><span class="badge-dot dot-orange"></span>1M+ Views</span>
@@ -99,9 +102,9 @@
         </div>
       </div>
       <!-- EDITED 2 -->
-      <div class="phone-card phone-edited">
+      <div class="phone-card phone-edited" data-tilt>
         <div class="phone-screen">
-          <img src="https://framerusercontent.com/images/WDrNOfg5iUyT57XmspvbapLbX7s.png?width=400" alt="Creator 2" loading="lazy">
+          <video src="https://framerusercontent.com/assets/X7mDMoy670X5uCTztvfLrcYhXE.mp4" loop muted playsinline autoplay></video>
           <div class="phone-overlay"></div>
           <div class="phone-badges">
             <span class="phone-badge badge-orange"><span class="badge-dot dot-orange"></span>100K+ Views</span>
@@ -122,9 +125,9 @@
         </div>
       </div>
       <!-- EDITED 3 -->
-      <div class="phone-card phone-edited">
+      <div class="phone-card phone-edited" data-tilt>
         <div class="phone-screen">
-          <img src="https://framerusercontent.com/images/tu9fv4cUMeAN8YUzlfGB29gpM.png?width=400" alt="Creator 3" loading="lazy">
+          <video src="https://framerusercontent.com/assets/Rxn2rYDo8j18aGGQnD79Gr3Nezg.mp4" loop muted playsinline autoplay></video>
           <div class="phone-overlay"></div>
           <div class="phone-badges">
             <span class="phone-badge badge-orange"><span class="badge-dot dot-orange"></span>200K+ Views</span>
@@ -145,7 +148,7 @@
         </div>
       </div>
       <!-- RAW 1 -->
-      <div class="phone-card phone-raw">
+      <div class="phone-card phone-raw" data-tilt>
         <div class="phone-screen">
           <img src="https://framerusercontent.com/images/tu9fv4cUMeAN8YUzlfGB29gpM.png?width=400" alt="Raw Footage" loading="lazy" class="raw-img">
           <div class="phone-overlay"></div>
@@ -167,7 +170,7 @@
         </div>
       </div>
       <!-- RAW 2 -->
-      <div class="phone-card phone-raw">
+      <div class="phone-card phone-raw" data-tilt>
         <div class="phone-screen">
           <img src="https://framerusercontent.com/images/WDrNOfg5iUyT57XmspvbapLbX7s.png?width=400" alt="Raw Footage 2" loading="lazy" class="raw-img">
           <div class="phone-overlay"></div>
@@ -451,7 +454,7 @@
     <div class="testi-layout reveal">
       <!-- LEFT COLUMN -->
       <div class="testi-col">
-        <div class="testi-card">
+        <div class="testi-card active-author" data-video-idx="0">
           <p>"Working with this team completely transformed my content. My engagement tripled within the first month."</p>
           <div class="testi-author">
             <div class="testi-av" style="background:linear-gradient(135deg,#ffa200,#ff2d55)">J</div>
@@ -461,7 +464,7 @@
             </div>
           </div>
         </div>
-        <div class="testi-card">
+        <div class="testi-card" data-video-idx="0">
           <div class="testi-stars">★★★★★</div>
           <p>"Working with Scrollz literally changed the future trajectory of our business! We can't wait to hire them again honestly."</p>
           <div class="testi-author">
@@ -472,9 +475,9 @@
             </div>
           </div>
         </div>
-        <div class="testi-card" style="opacity:0.55">
-          <div class="testi-stars" style="color:#ffa200">★★★★<span style="opacity:0.4">★</span></div>
-          <p>"The communication was excellent from day one…"</p>
+        <div class="testi-card" data-video-idx="1" style="opacity:0.85">
+          <div class="testi-stars" style="color:#ffa200">★★★★★</div>
+          <p>"The communication was excellent from day one. They delivered on every single promise they made!"</p>
           <div class="testi-author">
             <div class="testi-av" style="background:linear-gradient(135deg,#7932ec,#23005c)">L</div>
             <div>
@@ -486,28 +489,31 @@
       </div>
 
       <!-- CENTER PHONE -->
-      <div class="testi-phone-wrap">
-        <button class="testi-arr testi-arr-left" id="testiPrev">&#8249;</button>
+      <div class="testi-phone-wrap" data-tilt>
+        <button class="testi-arr testi-arr-left" id="testiPrev">‹</button>
         <div class="testi-phone-frame">
           <div class="testi-phone-screen">
-            <img src="https://framerusercontent.com/images/WDrNOfg5iUyT57XmspvbapLbX7s.png?width=500" alt="Testimonial video" class="testi-phone-img" loading="lazy">
-            <div class="testi-progress">
-              <div class="tp-bar"><div class="tp-fill"></div></div>
-              <div class="tp-bar"><div class="tp-fill2"></div></div>
-              <div class="tp-bar"><div class="tp-fill2"></div></div>
+            <video class="testi-video-slide active" id="testiVideo0" src="https://framerusercontent.com/assets/X3H7H2QZN3YVznG5VHcgCqImgg.mp4" loop muted playsinline autoplay></video>
+            <video class="testi-video-slide" id="testiVideo1" src="https://framerusercontent.com/assets/X7mDMoy670X5uCTztvfLrcYhXE.mp4" loop muted playsinline></video>
+            <video class="testi-video-slide" id="testiVideo2" src="https://framerusercontent.com/assets/Rxn2rYDo8j18aGGQnD79Gr3Nezg.mp4" loop muted playsinline></video>
+            
+            <div class="testi-progress" id="testiProgress">
+              <div class="tp-bar"><div class="tp-fill" id="tpFill0"></div></div>
+              <div class="tp-bar"><div class="tp-fill" id="tpFill1"></div></div>
+              <div class="tp-bar"><div class="tp-fill" id="tpFill2"></div></div>
             </div>
             <div class="testi-controls">
-              <div class="tc-btn">⏸</div>
-              <div class="tc-btn" style="font-size:9px">🔇</div>
+              <div class="tc-btn" id="testiPlayPause">⏸</div>
+              <div class="tc-btn" id="testiMuteUnmute" style="font-size:9px">🔇</div>
             </div>
           </div>
         </div>
-        <button class="testi-arr testi-arr-right" id="testiNext">&#8250;</button>
+        <button class="testi-arr testi-arr-right" id="testiNext">›</button>
       </div>
 
       <!-- RIGHT COLUMN -->
       <div class="testi-col">
-        <div class="testi-card">
+        <div class="testi-card" data-video-idx="1">
           <div class="testi-stars">★★★★★</div>
           <p>"The fastest turnaround I've ever experienced. Professional, reliable, and the quality speaks for itself."</p>
           <div class="testi-author">
@@ -518,7 +524,7 @@
             </div>
           </div>
         </div>
-        <div class="testi-card">
+        <div class="testi-card" data-video-idx="2">
           <div class="testi-stars">★★★★★</div>
           <p>"They nailed my brand's aesthetic from day one. I haven't looked for another editor since."</p>
           <div class="testi-author">
@@ -529,9 +535,9 @@
             </div>
           </div>
         </div>
-        <div class="testi-card" style="opacity:0.55">
-          <div class="testi-stars" style="color:#ffa200">★★★★<span style="opacity:0.4">★</span></div>
-          <p>"Incredible results in a very short time…"</p>
+        <div class="testi-card" data-video-idx="2" style="opacity:0.85">
+          <div class="testi-stars" style="color:#ffa200">★★★★★</div>
+          <p>"Incredible results in a very short time. We are getting more leads than ever before!"</p>
           <div class="testi-author">
             <div class="testi-av" style="background:linear-gradient(135deg,#05a112,#00aeff)">P</div>
             <div>
@@ -752,5 +758,6 @@ window.initHomePage();
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="fetchData.js?v=3"></script>
 <script src="visual-editor.js?v=14"></script>
+<div class="sound-toast" id="soundToast"><span>🔊</span> UI Sound Effects Enabled</div>
 </body>
 </html>
