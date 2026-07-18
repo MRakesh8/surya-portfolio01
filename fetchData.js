@@ -25,12 +25,19 @@ async function loadCMSContent() {
       
     if (error) throw error;
     
-    if (data && data.length > 0 && data[0][columnName]) {
+      if (data && data.length > 0 && data[0][columnName]) {
       const savedHTML = data[0][columnName];
       // Only replace if it actually contains HTML (basic check)
       if (savedHTML.includes('<section') || savedHTML.includes('<div')) {
          document.body.innerHTML = savedHTML;
          
+         // Ensure dynamically injected videos autoplay
+         const videos = document.querySelectorAll('video[autoplay]');
+         videos.forEach(v => {
+           v.muted = true; // Force mute to satisfy browser autoplay policies
+           v.play().catch(e => console.log('Autoplay blocked:', e));
+         });
+
          // Re-initialize page-specific event listeners that were wiped by innerHTML replacement
          if (isProjectsPage) {
            if (typeof window.initProjectsPage === 'function') {

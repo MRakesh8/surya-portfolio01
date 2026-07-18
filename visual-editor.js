@@ -76,8 +76,17 @@ if (editorIsAdmin) {
           newVideo.autoplay = true;
           newVideo.loop = true;
           newVideo.muted = true;
+          newVideo.setAttribute('autoplay', '');
+          newVideo.setAttribute('loop', '');
+          newVideo.setAttribute('muted', '');
           newVideo.setAttribute('playsinline', '');
           newVideo.style.display = 'block';
+          if (currentTarget && currentTarget.className) {
+            newVideo.className = currentTarget.className;
+          }
+          if (currentTarget && currentTarget.id) {
+            newVideo.id = currentTarget.id;
+          }
           newVideo.src = url;
           currentTarget.replaceWith(newVideo);
           currentTarget = newVideo;
@@ -522,8 +531,15 @@ if (editorIsAdmin) {
             newVideo.autoplay = true;
             newVideo.loop = true;
             newVideo.muted = true;
+            newVideo.setAttribute('autoplay', '');
+            newVideo.setAttribute('loop', '');
+            newVideo.setAttribute('muted', '');
             newVideo.setAttribute('playsinline', '');
-            if (currentMediaEl) currentMediaEl.replaceWith(newVideo);
+            if (currentMediaEl) {
+              if (currentMediaEl.className) newVideo.className = currentMediaEl.className;
+              if (currentMediaEl.id) newVideo.id = currentMediaEl.id;
+              currentMediaEl.replaceWith(newVideo);
+            }
             currentMediaEl = newVideo;
           }
           currentMediaEl.src = newMediaUrl;
