@@ -650,6 +650,22 @@ strong { color: var(--text); }
 .about-feature-item h4 svg { color: var(--text); fill: rgba(255,255,255,0.1); }
 .about-feature-item p { font-size: 0.95rem; color: var(--text-muted); line-height: 1.6; }
 
+/* Row layout for stats when layout has space */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .about-stats-left {
+    flex-direction: row;
+    justify-content: space-around;
+    gap: 16px;
+  }
+  .about-stat-item {
+    flex: 1;
+    text-align: center;
+    padding: 20px 16px;
+    border-right: 1px solid var(--border);
+  }
+  .about-stat-item:last-child { border-right: none; }
+}
+
 @media (max-width: 1024px) {
   .about-layout { grid-template-columns: 1fr; gap: 60px; }
   .about-stats-left, .about-features-right { text-align: center; }

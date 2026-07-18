@@ -509,9 +509,28 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Outfit', sans-serif; line-height: 1.1; fo
   grid-template-columns: 1.1fr auto 1.1fr;
   gap: 48px; align-items: center;
 }
+/* Mobile-first: stack vertically */
 .about-stats { display: flex; flex-direction: column; gap: 0; }
 .about-stat { padding: 32px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
 .about-stat:first-child { padding-top: 0; }
+
+/* Switch to horizontal row on wider viewports */
+@media (min-width: 768px) {
+  .about-stats {
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .about-stat {
+    flex: 1;
+    padding: 24px;
+    border-bottom: none;
+    border-right: 1px solid rgba(255,255,255,0.06);
+    text-align: center;
+  }
+  .about-stat:last-child { border-right: none; }
+  .about-stat:first-child { padding-top: 24px; }
+}
 .stat-number {
   font-family: 'Outfit', sans-serif;
   font-size: clamp(3.2rem, 5vw, 5rem);
@@ -556,6 +575,16 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Outfit', sans-serif; line-height: 1.1; fo
   .about-layout { grid-template-columns: 1fr; place-items: center; gap: 40px; }
   .about-phone-frame { width: 240px; }
   .about-feature:hover { transform: none; }
+  /* Reset stats to column on narrow screens */
+  .about-stats { flex-direction: column; gap: 0; }
+  .about-stat {
+    border-right: none;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding: 32px 0;
+    text-align: left;
+  }
+  .about-stat:first-child { padding-top: 0; }
+  .about-stat:last-child { border-right: none; }
 }
 
 /* ── SERVICES (Glassmorphic) ── */
