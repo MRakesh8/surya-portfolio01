@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
-import { ArrowLeft, Save, Undo, Sparkles } from 'lucide-react';
+import { ArrowLeft, Save, Undo, Sparkles, Image as ImageIcon } from 'lucide-react';
+import MediaLibraryModal from './MediaLibraryModal';
 
 export default function SectionEditor() {
   const { sectionKey } = useParams();
@@ -12,6 +13,9 @@ export default function SectionEditor() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   
+  const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
+  const [currentMediaField, setCurrentMediaField] = useState(null);
+
   // Very basic history for undo functionality
   const historyRef = useRef([]);
 
@@ -103,6 +107,16 @@ export default function SectionEditor() {
     }
   };
 
+  const openMediaLibrary = (field) => {
+    setCurrentMediaField(field);
+    setIsMediaModalOpen(true);
+  };
+
+  const handleMediaSelect = (url) => {
+    handleFieldChange(currentMediaField, url);
+    setIsMediaModalOpen(false);
+  };
+
   if (loading) return <div>Loading editor...</div>;
   if (error) return <div className="admin-error">{error}</div>;
   if (!section) return <div>Section not found.</div>;
@@ -164,12 +178,21 @@ export default function SectionEditor() {
                     style={{ width: '100%', minHeight: '120px', padding: '12px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '6px', resize: 'vertical' }}
                   />
                 ) : (
-                  <input 
-                    type="text"
-                    value={draftContent[field] || ''}
-                    onChange={(e) => handleFieldChange(field, e.target.value)}
-                    style={{ width: '100%', padding: '12px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '6px' }}
-                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input 
+                      type="text"
+                      value={draftContent[field] || ''}
+                      onChange={(e) => handleFieldChange(field, e.target.value)}
+                      style={{ flex: 1, padding: '12px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', borderRadius: '6px' }}
+                    />
+                    <button 
+                      onClick={() => openMediaLibrary(field)}
+                      style={{ padding: '0 12px', background: '#222', color: '#fff', border: '1px solid #333', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+                      title="Select Media"
+                    >
+                      <ImageIcon size={14} />
+                    </button>
+                  </div>
                 )}
               </div>
             ))
@@ -182,6 +205,14 @@ export default function SectionEditor() {
           <span style={{ fontSize: '12px' }}>This will render the specific section using the draft data.</span>
         </div>
       </div>
+      
+      {isMediaModalOpen && (
+        <MediaLibraryModal 
+          onClose={() => setIsMediaModalOpen(false)} 
+          onSelect={handleMediaSelect} 
+        />
+      )}
     </div>
   );
 }
+
