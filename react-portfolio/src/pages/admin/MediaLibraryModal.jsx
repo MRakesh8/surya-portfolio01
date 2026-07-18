@@ -32,7 +32,9 @@ export default function MediaLibraryModal({ onClose, onSelect }) {
 
   const handleSelect = (fileName) => {
     const { data } = supabase.storage.from('media').getPublicUrl(fileName);
-    onSelect(data.publicUrl);
+    // Append a versioning query string to bypass the 3600s cache
+    const cacheBusterUrl = `${data.publicUrl}?v=${Date.now()}`;
+    onSelect(cacheBusterUrl);
   };
 
   const uploadFile = async (event) => {

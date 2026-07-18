@@ -79,7 +79,8 @@ export default function MediaLibrary() {
 
   const copyUrlToClipboard = (fileName) => {
     const { data } = supabase.storage.from('media').getPublicUrl(fileName);
-    navigator.clipboard.writeText(data.publicUrl);
+    const cacheBusterUrl = `${data.publicUrl}?v=${Date.now()}`;
+    navigator.clipboard.writeText(cacheBusterUrl);
     alert('Public URL copied to clipboard! You can paste this in your section editors.');
   };
 
