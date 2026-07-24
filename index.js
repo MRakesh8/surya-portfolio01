@@ -1,10 +1,10 @@
 /* ============================================================
-   SCROLLZ — index.js (Upgraded to Ultra-Premium Next-Level)
+   SCROLLZ ΓÇö index.js (Upgraded to Ultra-Premium Next-Level)
    Contains all interaction, carousel logic, sound synthesis,
    3D tilt, and dynamic filtering for the Scrollz Agency.
    ============================================================ */
 
-// ── Web Audio Synth for Latency-Free Futuristic UI Sounds ──
+// ΓöÇΓöÇ Web Audio Synth for Latency-Free Futuristic UI Sounds ΓöÇΓöÇ
 const UISound = {
   ctx: null,
   enabled: false,
@@ -85,9 +85,9 @@ const UISound = {
     const btns = document.querySelectorAll('.sound-toggle');
     btns.forEach(btn => {
       if (btn.id === 'mobileSoundToggle') {
-        btn.textContent = this.enabled ? '🔊 Sound On' : '🔇 Sound Off';
+        btn.textContent = this.enabled ? '≡ƒöè Sound On' : '≡ƒöç Sound Off';
       } else {
-        btn.textContent = this.enabled ? '🔊' : '🔇';
+        btn.textContent = this.enabled ? '≡ƒöè' : '≡ƒöç';
       }
       btn.title = this.enabled ? 'Mute UI Sounds' : 'Unmute UI Sounds';
     });
@@ -96,7 +96,7 @@ const UISound = {
   showToast() {
     const toast = document.getElementById('soundToast');
     if (toast) {
-      toast.querySelector('span').textContent = this.enabled ? '🔊' : '🔇';
+      toast.querySelector('span').textContent = this.enabled ? '≡ƒöè' : '≡ƒöç';
       toast.childNodes[1].textContent = this.enabled ? ' UI Sound Effects Enabled' : ' UI Sound Effects Muted';
       toast.classList.add('show');
       setTimeout(() => toast.classList.remove('show'), 2200);
@@ -105,7 +105,7 @@ const UISound = {
 };
 
 
-// ── Initialization of HomePage Logic ──
+// ΓöÇΓöÇ Initialization of HomePage Logic ΓöÇΓöÇ
 window.initHomePage = function() {
   console.log("Initializing Home Page Interactions");
   
@@ -141,7 +141,7 @@ window.initHomePage = function() {
     });
   });
 
-  /* ─── NAVBAR SCROLL EFFECT ─── */
+  /* ΓöÇΓöÇΓöÇ NAVBAR SCROLL EFFECT ΓöÇΓöÇΓöÇ */
   const navbar = document.getElementById('navbar');
   if (navbar) {
     window.addEventListener('scroll', () => {
@@ -149,7 +149,7 @@ window.initHomePage = function() {
     }, { passive: true });
   }
 
-  /* ─── HAMBURGER & MOBILE MENU ─── */
+  /* ΓöÇΓöÇΓöÇ HAMBURGER & MOBILE MENU ΓöÇΓöÇΓöÇ */
   const hamburger = document.getElementById('hamburger');
   const mobileMenu = document.getElementById('mobileMenu');
   let menuOpen = false;
@@ -172,7 +172,7 @@ window.initHomePage = function() {
     });
   }
 
-  /* ─── PHONE GALLERY AUTO MARQUEE LOOP ─── */
+  /* ΓöÇΓöÇΓöÇ PHONE GALLERY AUTO MARQUEE LOOP ΓöÇΓöÇΓöÇ */
   const track = document.getElementById('phoneTrack');
   if (track) {
     // Clone children to ensure seamless continuous scroll
@@ -200,7 +200,7 @@ window.initHomePage = function() {
     track.parentElement.addEventListener('mouseleave', () => paused = false);
   }
 
-  /* ─── ABOUT SECTION PHONE HOVER SWAP ─── */
+  /* ΓöÇΓöÇΓöÇ ABOUT SECTION PHONE HOVER SWAP ΓöÇΓöÇΓöÇ */
   const aboutPhoneImg = document.querySelector('.about-phone-img');
   const aboutFeatures = document.querySelectorAll('.about-feature');
   const aboutStats = document.querySelectorAll('.about-stat');
@@ -229,7 +229,7 @@ window.initHomePage = function() {
     });
   }
 
-  /* ─── 3D TILT EFFECT ─── */
+  /* ΓöÇΓöÇΓöÇ 3D TILT EFFECT ΓöÇΓöÇΓöÇ */
   const tiltCards = document.querySelectorAll('[data-tilt]');
   tiltCards.forEach(card => {
     card.addEventListener('mousemove', (e) => {
@@ -246,7 +246,7 @@ window.initHomePage = function() {
     });
   });
 
-  /* ─── MOUSE MOVEMENT PARALLAX ON HERO GLOW ─── */
+  /* ΓöÇΓöÇΓöÇ MOUSE MOVEMENT PARALLAX ON HERO GLOW ΓöÇΓöÇΓöÇ */
   const heroGlow = document.querySelector('.hero-glow');
   if (heroGlow) {
     let animFrame;
@@ -260,7 +260,7 @@ window.initHomePage = function() {
     }, { passive: true });
   }
 
-  /* ─── SCROLL REVEAL OBSERVER ─── */
+  /* ΓöÇΓöÇΓöÇ SCROLL REVEAL OBSERVER ΓöÇΓöÇΓöÇ */
   const observerOptions = { threshold: 0.08, rootMargin: '0px 0px -40px 0px' };
   const revealObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -272,7 +272,7 @@ window.initHomePage = function() {
 
   document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
 
-  /* ─── PROCESS STEPS TIMELINE SCROLL SCALING ─── */
+  /* ΓöÇΓöÇΓöÇ PROCESS STEPS TIMELINE SCROLL SCALING ΓöÇΓöÇΓöÇ */
   const procCards = document.querySelectorAll('.proc-card');
   const procDot = document.getElementById('processDot');
   const procLine = document.getElementById('processLine');
@@ -306,7 +306,7 @@ window.initHomePage = function() {
   window.addEventListener('scroll', updateProcessTimeline, { passive: true });
   updateProcessTimeline();
 
-  /* ─── TESTIMONIAL VIDEO CAROUSEL SYSTEM ─── */
+  /* ΓöÇΓöÇΓöÇ TESTIMONIAL VIDEO CAROUSEL SYSTEM ΓöÇΓöÇΓöÇ */
   const testiSlides = document.querySelectorAll('.testi-video-slide');
   const testiCards = document.querySelectorAll('.testi-card');
   const playBtn = document.getElementById('testiPlayPause');
@@ -424,7 +424,7 @@ window.initHomePage = function() {
     if (playBtn) {
       playBtn.addEventListener('click', () => {
         isPlaying = !isPlaying;
-        playBtn.textContent = isPlaying ? '⏸' : '▶';
+        playBtn.textContent = isPlaying ? 'ΓÅ╕' : 'Γû╢';
         const activeVideo = testiSlides[currentSlide];
         if (activeVideo) {
           if (isPlaying) {
@@ -442,13 +442,13 @@ window.initHomePage = function() {
     if (muteBtn) {
       muteBtn.addEventListener('click', () => {
         isMuted = !isMuted;
-        muteBtn.textContent = isMuted ? '🔇' : '🔊';
+        muteBtn.textContent = isMuted ? '≡ƒöç' : '≡ƒöè';
         testiSlides.forEach(v => v.muted = isMuted);
       });
     }
   }
 
-  /* ─── FAQ ACCORDION TIMELINES ─── */
+  /* ΓöÇΓöÇΓöÇ FAQ ACCORDION TIMELINES ΓöÇΓöÇΓöÇ */
   document.querySelectorAll('.faq-item').forEach(item => {
     const btn = item.querySelector('.faq-q');
     if (btn) {
@@ -462,7 +462,7 @@ window.initHomePage = function() {
     }
   });
 
-  /* ─── SMOOTH ANCHOR LINK SCROLLS ─── */
+  /* ΓöÇΓöÇΓöÇ SMOOTH ANCHOR LINK SCROLLS ΓöÇΓöÇΓöÇ */
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     anchor.addEventListener('click', function(e) {
       const targetId = this.getAttribute('href');
@@ -477,7 +477,7 @@ window.initHomePage = function() {
     });
   });
 
-  /* ─── DYNAMIC NAV ACTIVE LINK HIGHLIGHTER ─── */
+  /* ΓöÇΓöÇΓöÇ DYNAMIC NAV ACTIVE LINK HIGHLIGHTER ΓöÇΓöÇΓöÇ */
   const pageSections = document.querySelectorAll('section[id], footer[id]');
   const navigationLinks = document.querySelectorAll('.nav-links a');
 
@@ -497,7 +497,7 @@ window.initHomePage = function() {
 };
 
 
-// ── Initialization of ProjectsPage Logic ──
+// ΓöÇΓöÇ Initialization of ProjectsPage Logic ΓöÇΓöÇ
 window.initProjectsPage = function() {
   console.log("Initializing Projects Page Interactions");
   
@@ -533,7 +533,7 @@ window.initProjectsPage = function() {
     });
   });
 
-  /* ─── NAVBAR SCROLL ─── */
+  /* ΓöÇΓöÇΓöÇ NAVBAR SCROLL ΓöÇΓöÇΓöÇ */
   const navbar = document.getElementById('navbar');
   if (navbar) {
     window.addEventListener('scroll', () => {
@@ -541,7 +541,7 @@ window.initProjectsPage = function() {
     }, { passive: true });
   }
 
-  /* ─── HAMBURGER & MOBILE MENU ─── */
+  /* ΓöÇΓöÇΓöÇ HAMBURGER & MOBILE MENU ΓöÇΓöÇΓöÇ */
   const hamburger = document.getElementById('hamburger');
   const mobileMenu = document.getElementById('mobileMenu');
   let menuOpen = false;
@@ -564,7 +564,7 @@ window.initProjectsPage = function() {
     });
   }
 
-  /* ─── 3D TILT ON PROJECT CARDS ─── */
+  /* ΓöÇΓöÇΓöÇ 3D TILT ON PROJECT CARDS ΓöÇΓöÇΓöÇ */
   const tiltCards = document.querySelectorAll('[data-tilt]');
   tiltCards.forEach(card => {
     card.addEventListener('mousemove', (e) => {
@@ -581,7 +581,7 @@ window.initProjectsPage = function() {
     });
   });
 
-  /* ─── INTERACTION CARDS STAGGERED FADE-UP ─── */
+  /* ΓöÇΓöÇΓöÇ INTERACTION CARDS STAGGERED FADE-UP ΓöÇΓöÇΓöÇ */
   const pCards = document.querySelectorAll('.p-card');
   const cardObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -598,7 +598,7 @@ window.initProjectsPage = function() {
 
   pCards.forEach(c => cardObserver.observe(c));
 
-  /* ─── LIVE ADVANCED TAB FILTER & SEARCH ─── */
+  /* ΓöÇΓöÇΓöÇ LIVE ADVANCED TAB FILTER & SEARCH ΓöÇΓöÇΓöÇ */
   const searchInput = document.getElementById('projectSearch');
   const tabsService = document.querySelectorAll('#tabsService .filter-tab-btn');
   const tabsNiche = document.querySelectorAll('#tabsNiche .filter-tab-btn');
@@ -693,7 +693,7 @@ window.initProjectsPage = function() {
 };
 
 
-// ── DOMContentLoaded Fallback Trigger ──
+// ΓöÇΓöÇ DOMContentLoaded Fallback Trigger ΓöÇΓöÇ
 document.addEventListener('DOMContentLoaded', () => {
   const isProjects = window.location.pathname.includes('projects.html');
   if (isProjects) {

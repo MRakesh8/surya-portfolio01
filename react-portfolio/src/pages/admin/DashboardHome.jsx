@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import MediaLibraryModal from './MediaLibraryModal';
-import { Undo, Redo, Save } from 'lucide-react';
+import { Undo, Redo, Save, Sparkles } from 'lucide-react';
 
 export default function DashboardHome() {
   const [showMediaModal, setShowMediaModal] = useState(false);
@@ -99,8 +99,10 @@ export default function DashboardHome() {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '0 0 16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '20px' }}>Visual Builder</h2>
-          <p style={{ margin: '4px 0 0 0', color: '#888', fontSize: '14px' }}>Right-click on any element below to edit it.</p>
+          <h2 style={{ margin: 0, fontSize: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Sparkles size={18} color="#7932ec" /> Scrollz Visual Editor
+          </h2>
+          <p style={{ margin: '4px 0 0 0', color: '#888', fontSize: '13px' }}>Click or right-click any element in the live preview below to edit text, videos, or images.</p>
         </div>
         
         <div style={{ display: 'flex', gap: '12px' }}>
@@ -108,45 +110,45 @@ export default function DashboardHome() {
             onClick={handleUndo} 
             disabled={!canUndo}
             style={{ 
-              background: '#222', border: '1px solid #333', color: canUndo ? '#fff' : '#555', 
-              padding: '8px 12px', borderRadius: '6px', cursor: canUndo ? 'pointer' : 'not-allowed',
-              display: 'flex', alignItems: 'center', gap: '6px'
+              background: '#16161a', border: '1px solid rgba(255,255,255,0.1)', color: canUndo ? '#fff' : '#555', 
+              padding: '8px 14px', borderRadius: '8px', cursor: canUndo ? 'pointer' : 'not-allowed',
+              display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px'
             }}
           >
-            <Undo size={16} /> Undo
+            <Undo size={15} /> Undo
           </button>
           
           <button 
             onClick={handleRedo} 
             disabled={!canRedo}
             style={{ 
-              background: '#222', border: '1px solid #333', color: canRedo ? '#fff' : '#555', 
-              padding: '8px 12px', borderRadius: '6px', cursor: canRedo ? 'pointer' : 'not-allowed',
-              display: 'flex', alignItems: 'center', gap: '6px'
+              background: '#16161a', border: '1px solid rgba(255,255,255,0.1)', color: canRedo ? '#fff' : '#555', 
+              padding: '8px 14px', borderRadius: '8px', cursor: canRedo ? 'pointer' : 'not-allowed',
+              display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px'
             }}
           >
-            <Redo size={16} /> Redo
+            <Redo size={15} /> Redo
           </button>
 
           <button 
             onClick={requestSave}
             disabled={saving}
             style={{ 
-              background: '#9333ea', border: 'none', color: '#fff', 
-              padding: '8px 16px', borderRadius: '6px', cursor: 'pointer',
-              fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px',
-              boxShadow: '0 0 15px rgba(147, 51, 234, 0.4)'
+              background: 'linear-gradient(135deg, #7932ec, #23005c)', border: 'none', color: '#fff', 
+              padding: '8px 20px', borderRadius: '8px', cursor: 'pointer',
+              fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px',
+              boxShadow: '0 0 15px rgba(121, 50, 236, 0.4)'
             }}
           >
-            <Save size={16} /> {saving ? 'Saving...' : 'Save & Publish'}
+            <Save size={15} /> {saving ? 'Saving...' : 'Save & Publish'}
           </button>
         </div>
       </div>
 
-      <div style={{ flex: 1, border: '1px solid #333', borderRadius: '8px', overflow: 'hidden', background: '#000' }}>
+      <div style={{ flex: 1, border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', overflow: 'hidden', background: '#000' }}>
         <iframe 
           ref={iframeRef}
-          src={import.meta.env.DEV ? `http://127.0.0.1:5500/index.html?admin=true&t=${Date.now()}` : `/index.html?admin=true&t=${Date.now()}`}
+          src={`/index.html?admin=true&t=${Date.now()}`}
           style={{ width: '100%', height: '100%', border: 'none' }}
           title="Visual Builder"
         />

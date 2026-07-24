@@ -11,14 +11,11 @@ import './App.css';
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/admin">
       <Routes>
-        {/* Redirect base URL directly to the Admin Dashboard to avoid confusion */}
-        <Route path="/" element={<Navigate to="/admin" replace />} />
-        
-        {/* Admin Routes */}
-        <Route path="/admin/login" element={<Login />} />
-        <Route path="/admin" element={<DashboardLayout />}>
+        {/* Admin Routes with /admin basename */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<DashboardLayout />}>
           <Route index element={<DashboardHome />} />
           <Route path="pages" element={<SectionsList />} />
           <Route path="pages/:sectionKey" element={<SectionEditor />} />
@@ -26,7 +23,7 @@ export default function App() {
           <Route path="settings" element={<Settings />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/admin" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

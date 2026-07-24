@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FileText, Settings, LogOut, Image as ImageIcon, Sparkles } from 'lucide-react';
+import { LayoutDashboard, FileText, Settings, LogOut, Image as ImageIcon, Sparkles, ExternalLink } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 import './Admin.css';
 
@@ -17,13 +17,13 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate('/admin/login');
+      navigate('/login');
     }
   }, [user, loading, navigate]);
 
   const handleLogout = async () => {
     await signOut();
-    navigate('/admin/login');
+    navigate('/login');
   };
 
   if (loading || !user) {
@@ -34,20 +34,20 @@ export default function DashboardLayout() {
     <div className="admin-dashboard">
       <aside className="admin-sidebar">
         <div className="admin-sidebar-header">
-          <h2><Sparkles size={20} color="#9333ea" /> CMS Admin</h2>
+          <h2><Sparkles size={20} color="#7932ec" /> Scrollz Admin</h2>
         </div>
         
         <nav className="admin-nav">
-          <NavLink to="/admin" end className={({isActive}) => `admin-nav-item ${isActive ? 'active' : ''}`}>
-            <LayoutDashboard size={18} /> Dashboard
+          <NavLink to="/" end className={({isActive}) => `admin-nav-item ${isActive ? 'active' : ''}`}>
+            <LayoutDashboard size={18} /> Visual Builder
           </NavLink>
-          <NavLink to="/admin/pages" className={({isActive}) => `admin-nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/pages" className={({isActive}) => `admin-nav-item ${isActive ? 'active' : ''}`}>
             <FileText size={18} /> Pages & Sections
           </NavLink>
-          <NavLink to="/admin/media" className={({isActive}) => `admin-nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/media" className={({isActive}) => `admin-nav-item ${isActive ? 'active' : ''}`}>
             <ImageIcon size={18} /> Media Library
           </NavLink>
-          <NavLink to="/admin/settings" className={({isActive}) => `admin-nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/settings" className={({isActive}) => `admin-nav-item ${isActive ? 'active' : ''}`}>
             <Settings size={18} /> Settings
           </NavLink>
         </nav>
@@ -65,12 +65,12 @@ export default function DashboardLayout() {
 
       <main className="admin-main">
         <header className="admin-topbar">
-          <div>
-            {/* Breadcrumbs or Page Title could go here */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 600, color: '#fff' }}>
+            Scrollz Studio CMS
           </div>
           <div>
-            <a href="/" target="_blank" rel="noreferrer" style={{ color: '#9333ea', textDecoration: 'none', fontSize: '14px', fontWeight: 600 }}>
-              View Live Site ↗
+            <a href="/index.html" target="_blank" rel="noreferrer" style={{ color: '#7932ec', textDecoration: 'none', fontSize: '14px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              View Live Website <ExternalLink size={14} />
             </a>
           </div>
         </header>
