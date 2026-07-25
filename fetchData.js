@@ -1,4 +1,4 @@
-// This script fetches data from your Supabase CMS and updates the live website.
+// This script fetches data from your Supabase CMS and updates the live website in REAL-TIME.
 
 const SUPABASE_URL = 'https://sdvcpkexawlihomyhkkp.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkdmNwa2V4YXdsaWhvbXloa2twIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMzk2ODAsImV4cCI6MjA5OTYxNTY4MH0.g02cUmn305wiUZ4aNfKr43SaeveI1FcmPwTmBia5dh4';
@@ -9,94 +9,87 @@ const urlParams = new URLSearchParams(window.location.search);
 const isAdmin = urlParams.get('admin') === 'true';
 
 /**
- * Surgically patches media elements (img, video) in the live DOM
- * using a saved HTML string as the source of truth.
- * This avoids replacing document.body.innerHTML which destroys
- * all event listeners, scripts, and interactive functionality.
+ * Recursively diffs and patches the live DOM with the saved HTML.
+ * Real-Time DOM reconcile logic for text, media, styles, and structural changes.
  */
-function patchMediaElements(savedHTML) {
-  // Parse the saved HTML into a detached document
-  const parser = new DOMParser();
-  const savedDoc = parser.parseFromString(savedHTML, 'text/html');
+function patchDOM(liveNode, savedNode) {
+  if (!liveNode || !savedNode) return;
 
-  // --- 1. Patch elements that have an ID ---
-  const savedMediaWithId = savedDoc.querySelectorAll('img[id], video[id]');
-  savedMediaWithId.forEach(savedEl => {
-    const liveEl = document.getElementById(savedEl.id);
-    if (!liveEl) return;
+  // Skip script, style, and noscript elements completely
+  if (liveNode.tagName === 'SCRIPT' || liveNode.tagName === 'STYLE' || liveNode.tagName === 'NOSCRIPT') {
+    return;
+  }
 
-    if (savedEl.tagName === 'VIDEO') {
-      patchVideoElement(liveEl, savedEl.src);
-    } else if (savedEl.tagName === 'IMG') {
-      if (liveEl.src !== savedEl.src) {
-        liveEl.src = savedEl.src;
+  // 1. Sync Text Node values
+  if (liveNode.nodeType === Node.TEXT_NODE && savedNode.nodeType === Node.TEXT_NODE) {
+    if (liveNode.nodeValue !== savedNode.nodeValue) {
+      liveNode.nodeValue = savedNode.nodeValue;
+    }
+    return;
+  }
+
+  if (liveNode.nodeType !== savedNode.nodeType) return;
+
+  if (liveNode.nodeType === Node.ELEMENT_NODE) {
+    // If tag names differ, handle media element replacement (IMG <-> VIDEO)
+    if (liveNode.tagName !== savedNode.tagName) {
+      if (['IMG', 'VIDEO'].includes(liveNode.tagName) && ['IMG', 'VIDEO'].includes(savedNode.tagName)) {
+        const replacement = savedNode.cloneNode(true);
+        liveNode.replaceWith(replacement);
+        if (replacement.tagName === 'VIDEO') {
+          replacement.load();
+          replacement.play().catch(() => {});
+        }
       }
+      return;
     }
-  });
 
-  // --- 2. Patch elements by matching their position in the DOM ---
-  // For elements without IDs (e.g. phone gallery videos), match by index
-  const liveVideos = Array.from(document.querySelectorAll('video'));
-  const savedVideos = Array.from(savedDoc.querySelectorAll('video'));
+    // 2. Sync visual, text styling, and media attributes across ALL elements
+    const attrsToSync = ['class', 'style', 'src', 'srcset', 'href', 'poster'];
 
-  savedVideos.forEach((savedVid, i) => {
-    // Skip if already handled by ID match above
-    if (savedVid.id && document.getElementById(savedVid.id)) return;
-    if (liveVideos[i] && liveVideos[i].getAttribute('src') !== savedVid.getAttribute('src')) {
-      patchVideoElement(liveVideos[i], savedVid.getAttribute('src'));
+    attrsToSync.forEach(attrName => {
+      if (savedNode.hasAttribute(attrName)) {
+        const val = savedNode.getAttribute(attrName);
+        if (liveNode.getAttribute(attrName) !== val) {
+          if (liveNode.tagName === 'VIDEO' && attrName === 'src') {
+            liveNode.setAttribute('src', val);
+            liveNode.load();
+            const playPromise = liveNode.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(() => {});
+            }
+          } else {
+            liveNode.setAttribute(attrName, val);
+          }
+        }
+      } else {
+        if (liveNode.hasAttribute(attrName)) {
+          liveNode.removeAttribute(attrName);
+        }
+      }
+    });
+
+    // 3. Sync Children recursively (with structural additions/deletions handling)
+    const liveChildren = Array.from(liveNode.childNodes);
+    const savedChildren = Array.from(savedNode.childNodes);
+    const minLen = Math.min(liveChildren.length, savedChildren.length);
+
+    for (let i = 0; i < minLen; i++) {
+      patchDOM(liveChildren[i], savedChildren[i]);
     }
-  });
 
-  const liveImgs = Array.from(document.querySelectorAll('img:not([data-skip-cms])'));
-  const savedImgs = Array.from(savedDoc.querySelectorAll('img'));
-
-  savedImgs.forEach((savedImg, i) => {
-    if (savedImg.id && document.getElementById(savedImg.id)) return;
-    if (liveImgs[i] && liveImgs[i].src !== savedImg.src) {
-      liveImgs[i].src = savedImg.src;
-    }
-  });
-
-  // --- 3. Patch CMS text fields (elements with cms- IDs) ---
-  const cmsElements = savedDoc.querySelectorAll('[id^="cms-"]');
-  cmsElements.forEach(savedEl => {
-    const liveEl = document.getElementById(savedEl.id);
-    if (liveEl && liveEl.innerHTML !== savedEl.innerHTML) {
-      liveEl.innerHTML = savedEl.innerHTML;
-    }
-  });
-}
-
-/**
- * Replaces a video's src cleanly, forcing reload and autoplay.
- * Works around browser quirks with dynamically injected video elements.
- */
-function patchVideoElement(liveVid, newSrc) {
-  if (!newSrc || liveVid.getAttribute('src') === newSrc) return;
-
-  liveVid.setAttribute('src', newSrc);
-  liveVid.muted = true;
-  liveVid.setAttribute('muted', '');
-  liveVid.setAttribute('playsinline', '');
-  liveVid.load();
-
-  // Play when ready, respecting browser autoplay policy
-  if (liveVid.hasAttribute('autoplay') || liveVid.classList.contains('active')) {
-    const playPromise = liveVid.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(() => {
-        // Autoplay blocked — video will play on user interaction
-      });
+    // If elements were deleted in savedNode, remove them from liveNode
+    if (liveChildren.length > savedChildren.length) {
+      for (let i = savedChildren.length; i < liveChildren.length; i++) {
+        if (liveChildren[i].tagName !== 'SCRIPT' && liveChildren[i].tagName !== 'STYLE') {
+          liveChildren[i].remove();
+        }
+      }
     }
   }
 }
 
 async function loadCMSContent() {
-  if (isAdmin) {
-    // If in Admin builder mode, don't override the page
-    return;
-  }
-
   try {
     const isProjectsPage = window.location.pathname.includes('projects.html');
     const columnName = isProjectsPage ? 'seo_keywords' : 'site_description';
@@ -110,10 +103,18 @@ async function loadCMSContent() {
 
     if (data && data.length > 0 && data[0][columnName]) {
       const savedHTML = data[0][columnName];
-      // Only process if it actually contains HTML
       if (savedHTML.includes('<section') || savedHTML.includes('<div')) {
-        // Surgically patch only media elements — no full body replacement
-        patchMediaElements(savedHTML);
+        const parser = new DOMParser();
+        const savedDoc = parser.parseFromString(savedHTML, 'text/html');
+
+        const liveMain = document.getElementById('main');
+        const savedMain = savedDoc.getElementById('main');
+
+        if (liveMain && savedMain) {
+          patchDOM(liveMain, savedMain);
+        } else if (savedDoc.body && document.body) {
+          patchDOM(document.body, savedDoc.body);
+        }
       }
     }
   } catch (err) {
@@ -121,5 +122,19 @@ async function loadCMSContent() {
   }
 }
 
-// Load content when the DOM is ready
-document.addEventListener('DOMContentLoaded', loadCMSContent);
+// Load content on page load
+window.addEventListener('load', () => {
+  setTimeout(loadCMSContent, 400);
+});
+
+// REAL-TIME SUPABASE SUBSCRIPTION: Listen for live database updates
+try {
+  client.channel('site_settings_realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'site_settings' }, payload => {
+      console.log('[CMS Realtime] Database change detected — patching live DOM in real time!');
+      loadCMSContent();
+    })
+    .subscribe();
+} catch(e) {
+  console.warn('[CMS Realtime] Subscription warning:', e);
+}
