@@ -172,7 +172,29 @@ window.initHomePage = function() {
     });
   }
 
-  /* ΓöÇΓöÇΓöÇ PHONE GALLERY AUTO MARQUEE LOOP ΓöÇΓöÇΓöÇ */
+  /* ─── ULTRA-FAST VIDEO PERFORMANCE OBSERVER (Zero Lag) ─── */
+  (function initVideoPerformanceObserver() {
+    const allVideos = document.querySelectorAll('video');
+    if (allVideos.length === 0) return;
+
+    const videoObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const vid = entry.target;
+        if (entry.isIntersecting) {
+          vid.play().catch(() => {});
+        } else {
+          vid.pause();
+        }
+      });
+    }, {
+      rootMargin: '300px 0px 300px 0px',
+      threshold: 0
+    });
+
+    allVideos.forEach(vid => videoObserver.observe(vid));
+  })();
+
+  /* ─── PHONE GALLERY AUTO MARQUEE LOOP (Optimized GPU) ─── */
   const track = document.getElementById('phoneTrack');
   if (track) {
     // Clone children to ensure seamless continuous scroll
@@ -182,15 +204,19 @@ window.initHomePage = function() {
     let pos = 0;
     let paused = false;
     const speed = 0.8;
+    let cachedHalf = track.scrollWidth / 2;
+
+    window.addEventListener('resize', () => {
+      cachedHalf = track.scrollWidth / 2;
+    }, { passive: true });
 
     function animateMarquee() {
-      if (!paused) {
+      if (!paused && cachedHalf > 0) {
         pos += speed;
-        const half = track.scrollWidth / 2;
-        if (pos >= half) {
-          pos -= half;
+        if (pos >= cachedHalf) {
+          pos -= cachedHalf;
         }
-        track.style.transform = `translateX(${-pos}px)`;
+        track.style.transform = `translate3d(${-pos}px, 0, 0)`;
       }
       requestAnimationFrame(animateMarquee);
     }

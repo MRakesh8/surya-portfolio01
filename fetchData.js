@@ -8,6 +8,15 @@ const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const urlParams = new URLSearchParams(window.location.search);
 const isAdmin = urlParams.get('admin') === 'true';
 
+(function injectHidePencilStyle() {
+  if (!document.getElementById('hide-pencil-button')) {
+    var st = document.createElement('style');
+    st.id = 'hide-pencil-button';
+    st.innerHTML = 'use[href*="1899053508"], [id="1899053508"], .framer-r6zv2z { display: none !important; opacity: 0 !important; pointer-events: none !important; visibility: hidden !important; }';
+    (document.head || document.documentElement).appendChild(st);
+  }
+})();
+
 /**
  * Recursively diffs and patches the live DOM with the saved HTML.
  * Real-Time DOM reconcile logic for text, media, styles, and structural changes.
@@ -89,6 +98,9 @@ function patchDOM(liveNode, savedNode) {
   }
 }
 
+/**
+ * Loads CMS content from Supabase database and updates the live website in real time.
+ */
 async function loadCMSContent() {
   try {
     const isProjectsPage = window.location.pathname.includes('projects.html');
@@ -102,36 +114,56 @@ async function loadCMSContent() {
     if (error) throw error;
 
     if (data && data.length > 0 && data[0][columnName]) {
-      const savedHTML = data[0][columnName];
-      if (savedHTML.includes('<section') || savedHTML.includes('<div')) {
-        const parser = new DOMParser();
-        const savedDoc = parser.parseFromString(savedHTML, 'text/html');
+      const savedHTML = data[0][columnName].trim();
+      if (!savedHTML) return;
 
-        const liveMain = document.getElementById('main');
-        const savedMain = savedDoc.getElementById('main');
+      const liveMain = document.getElementById('main');
+      const parser = new DOMParser();
+      const savedDoc = parser.parseFromString(savedHTML, 'text/html');
+      const savedMain = savedDoc.getElementById('main');
 
-        if (liveMain && savedMain) {
-          patchDOM(liveMain, savedMain);
-        } else if (savedDoc.body && document.body) {
-          patchDOM(document.body, savedDoc.body);
+      if (liveMain) {
+        if (savedMain && savedMain.innerHTML.trim()) {
+          liveMain.innerHTML = savedMain.innerHTML;
+        } else if (savedDoc.body && savedDoc.body.innerHTML.trim()) {
+          liveMain.innerHTML = savedDoc.body.innerHTML;
+        } else {
+          liveMain.innerHTML = savedHTML;
         }
+      } else if (savedDoc.body && document.body) {
+        document.body.innerHTML = savedDoc.body.innerHTML;
+      }
+
+      // Re-initialize mute controls and video scripts on live website
+      if (typeof injectMuteControls === 'function') {
+        injectMuteControls();
       }
     }
   } catch (err) {
-    console.error('Error loading CMS content:', err);
+    console.error('[CMS] Error loading CMS content:', err);
   }
 }
 
-// Load content on page load
-window.addEventListener('load', () => {
-  setTimeout(loadCMSContent, 400);
-});
+// Defer CMS content load until idle to guarantee instant initial page paint
+function scheduleCMSLoad() {
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(loadCMSContent, { timeout: 1000 });
+  } else {
+    setTimeout(loadCMSContent, 100);
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', scheduleCMSLoad);
+} else {
+  scheduleCMSLoad();
+}
 
 // REAL-TIME SUPABASE SUBSCRIPTION: Listen for live database updates
 try {
   client.channel('site_settings_realtime')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'site_settings' }, payload => {
-      console.log('[CMS Realtime] Database change detected — patching live DOM in real time!');
+      console.log('[CMS Realtime] Database change detected — updating live website in real time!');
       loadCMSContent();
     })
     .subscribe();
