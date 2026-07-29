@@ -400,6 +400,13 @@
       curr.style.setProperty('-webkit-user-select', 'text', 'important');
       curr = curr.parentElement;
     }
+    if (el && el.querySelectorAll) {
+      el.querySelectorAll('*').forEach(function(child) {
+        child.style.setProperty('pointer-events', 'auto', 'important');
+        child.style.setProperty('user-select', 'text', 'important');
+        child.style.setProperty('-webkit-user-select', 'text', 'important');
+      });
+    }
   }
 
   var activeEditingElement = null;
@@ -524,8 +531,15 @@
   function getElementAtPoint(clickX, clickY) {
     if (clickX === undefined || clickY === undefined || !document.elementsFromPoint) return null;
 
-    // 1. Check direct point-stack hit
     var stack = document.elementsFromPoint(clickX, clickY);
+    if (!stack || stack.length === 0) return null;
+
+    // Prioritize direct text clicks
+    if (isTextNodeOrTag(stack[0])) {
+      return findBestTextContainer(stack[0]);
+    }
+
+    // 1. Check direct point-stack hit for media/svg
     for (var i = 0; i < stack.length; i++) {
       var mediaNode = findMediaOrSvgNode(stack[i]);
       if (mediaNode) return mediaNode;
@@ -573,8 +587,12 @@
       return;
     }
 
-    // 1. Precise Coordinate-Based Hit Detection (Guarantees exact video/image/logo in carousels & tickers)
-    var target = getElementAtPoint(clickX, clickY);
+    var target = null;
+    if (isTextNodeOrTag(el)) {
+      target = findBestTextContainer(el);
+    } else {
+      target = getElementAtPoint(clickX, clickY);
+    }
 
     // 2. Hierarchical fallback if coordinate check didn't resolve target
     if (!target) {
@@ -588,7 +606,7 @@
         } else {
           var treeImg = findImgInTree(el, 10);
           if (treeImg) {
-            target = isTextNodeOrTag(el) ? el : treeImg;
+            target = isTextNodeOrTag(el) ? findBestTextContainer(el) : treeImg;
           } else {
             if (isTextNodeOrTag(el)) {
               target = findBestTextContainer(el);
@@ -628,11 +646,12 @@
     currentTarget = target;
     window.lastSelectedElement = target;
 
-    var targetTag = target.tagName ? target.tagName.toUpperCase() : '';
-    var isVideoTag = (targetTag === 'VIDEO') || (target.querySelector && target.querySelector('video') !== null);
-    var isSvgTag   = (targetTag === 'SVG') || (targetTag === 'USE') || (target.getAttribute && target.getAttribute('data-framer-component-type') === 'SVG') || (target.classList && target.classList.contains('svgContainer'));
-    var isImgTag   = (targetTag === 'IMG') || isSvgTag || (target.querySelector && target.querySelector('img, svg, [data-framer-component-type="SVG"]') !== null);
-    var isMedia    = isVideoTag || isImgTag;
+    var targetTag  = target.tagName ? target.tagName.toUpperCase() : '';
+    var isText     = isTextNodeOrTag(target);
+    var isVideoTag = !isText && ((targetTag === 'VIDEO') || (target.querySelector && target.querySelector('video') !== null));
+    var isSvgTag   = !isText && ((targetTag === 'SVG') || (targetTag === 'USE') || (target.getAttribute && target.getAttribute('data-framer-component-type') === 'SVG') || (target.classList && target.classList.contains('svgContainer')));
+    var isImgTag   = !isText && ((targetTag === 'IMG') || isSvgTag);
+    var isMedia    = !isText && (isVideoTag || isImgTag);
 
     if (!isMedia) {
       enableTextEditing(target);
@@ -643,14 +662,14 @@
       rect = target.parentElement.getBoundingClientRect();
     }
 
-    var actualVideo = target.tagName === 'VIDEO' ? target : (target.querySelector ? target.querySelector('video') : null);
+    var actualVideo = isVideoTag ? (target.tagName === 'VIDEO' ? target : (target.querySelector ? target.querySelector('video') : null)) : null;
     var audioAllowed = actualVideo ? (actualVideo.getAttribute('data-audio-allowed') !== 'false') : true;
 
     var info = {
       type: 'ELEMENT_INFO',
       found: true,
       isMedia: isMedia,
-      tag: isVideoTag ? 'VIDEO' : 'IMG',
+      tag: isVideoTag ? 'VIDEO' : (isImgTag ? 'IMG' : (target.tagName ? target.tagName.toUpperCase() : 'TEXT')),
       isVideo: isVideoTag,
       audioAllowed: audioAllowed,
       hasText: !!(target.textContent && target.textContent.trim()),

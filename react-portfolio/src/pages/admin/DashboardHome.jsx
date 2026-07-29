@@ -17,12 +17,12 @@ function ContextMenu({ menu, onAction, onClose }) {
   const hoverOut = (e) => e.currentTarget.style.background = 'transparent';
 
   const isVideo = menu.isVideo === true || menu.tag === 'VIDEO';
-  const isImage = !isVideo && (menu.tag === 'IMG' || menu.isMedia === true);
-  const isMedia = isVideo || isImage || menu.isMedia === true;
+  const isImage = menu.isMedia === true && !isVideo;
+  const isMedia = isVideo || isImage;
 
   const headerLabel = isVideo ? '🎬 Video Element'
     : isImage ? '🖼️ Image Element'
-    : '✏️ Text Element';
+    : `✏️ ${menu.tag || 'Text'} Element`;
 
   return (
     <>
@@ -230,8 +230,7 @@ export default function DashboardHome() {
 
   const handleCloseMenu = useCallback(() => {
     setMenu(m => ({ ...m, visible: false }));
-    postToIframe({ type: 'DESELECT' });
-  }, [postToIframe]);
+  }, []);
 
   // ── Context menu actions ──
   const handleMenuAction = useCallback((action) => {
