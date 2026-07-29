@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '../../supabaseClient';
 import MediaLibraryModal from './MediaLibraryModal';
-import { Save, Sparkles, RotateCcw, RotateCw, History } from 'lucide-react';
+import { Save, Sparkles, RotateCcw, RotateCw, History, VolumeX, Volume2 } from 'lucide-react';
 
 /* ─── Context Menu ─── */
 function ContextMenu({ menu, onAction, onClose }) {
@@ -171,6 +171,16 @@ export default function DashboardHome() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [postToIframe]);
 
+  const [isGlobalMuted, setIsGlobalMuted] = useState(true);
+
+  const handleToggleGlobalMute = useCallback(() => {
+    setIsGlobalMuted(prev => {
+      const next = !prev;
+      postToIframe({ type: 'TOGGLE_GLOBAL_MUTE', muted: next });
+      return next;
+    });
+  }, [postToIframe]);
+
   // ── Message handler ──
   useEffect(() => {
     const handle = (event) => {
@@ -180,6 +190,7 @@ export default function DashboardHome() {
       if (msg.type === 'IFRAME_READY') {
         console.log('[Admin] iframe is ready!');
         setStatus('ready');
+        postToIframe({ type: 'TOGGLE_GLOBAL_MUTE', muted: isGlobalMuted });
       }
 
       if (msg.type === 'HISTORY_UPDATE') {
@@ -377,10 +388,34 @@ export default function DashboardHome() {
               alignItems: 'center',
               gap: '6px',
               fontSize: '13px',
-              marginRight: '6px'
+              marginRight: '2px'
             }}
           >
             <History size={14} /> Restore Original
+          </button>
+
+          {/* Mute All Audio Toggle Button */}
+          <button
+            onClick={handleToggleGlobalMute}
+            title={isGlobalMuted ? "Click to Enable Sound in Preview" : "Click to Mute All Audio in Preview"}
+            style={{
+              background: isGlobalMuted ? 'rgba(239, 68, 68, 0.16)' : 'rgba(34, 197, 94, 0.16)',
+              border: '1px solid ' + (isGlobalMuted ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.35)'),
+              color: isGlobalMuted ? '#f87171' : '#4ade80',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '13px',
+              marginRight: '6px',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            {isGlobalMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+            {isGlobalMuted ? 'Mute All Audio (ON)' : 'Sound Enabled'}
           </button>
 
           {/* Save & Publish Button */}

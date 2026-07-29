@@ -352,6 +352,27 @@
     }
   }, true);
 
+  /* ── Global Mute Controller ── */
+  window.isGlobalMuted = true;
+
+  function setGlobalMute(muted) {
+    window.isGlobalMuted = typeof muted === 'boolean' ? muted : true;
+    var allMedia = document.querySelectorAll('video, audio');
+    allMedia.forEach(function(media) {
+      if (window.isGlobalMuted) {
+        media.muted = true;
+      } else {
+        var audioAllowed = media.getAttribute('data-audio-allowed') !== 'false';
+        if (audioAllowed) {
+          media.muted = false;
+        }
+      }
+      if (media._updateMuteControl) media._updateMuteControl();
+      if (media._updateMuteIcon) media._updateMuteIcon();
+    });
+    console.log('[VE] setGlobalMute:', window.isGlobalMuted);
+  }
+
   /* ── Message handler ── */
   window.addEventListener('message', function(event) {
     try {
@@ -363,6 +384,7 @@
       if (msg.type === 'UNDO')             undoState();
       if (msg.type === 'REDO')             redoState();
       if (msg.type === 'RESTORE_ORIGINAL') restoreOriginalState();
+      if (msg.type === 'TOGGLE_GLOBAL_MUTE') setGlobalMute(msg.muted);
       if (msg.type === 'DESELECT') {
         clearSelection();
         resumePausedVideo();
