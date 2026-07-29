@@ -1055,3 +1055,36 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Outfit', sans-serif; line-height: 1.1; fo
   color: #fff;
   box-shadow: 0 8px 20px rgba(121, 50, 236, 0.35);
 }
+
+/* ── UNIVERSAL AUTO-MOVE TICKER & CAROUSEL ANIMATIONS ── */
+.framer-6lep06 ul,
+.framer-18eru5x ul,
+[data-framer-name="Edited Video Wrapper"] ul,
+[data-framer-name="Row 2"] ul,
+[data-framer-name="Row 3"] ul,
+.ticker-track ul,
+.ticker-inner {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: flex !important;
+  width: max-content !important;
+  animation: tickerAutoMove 28s linear infinite !important;
+  will-change: transform;
+}
+
+.framer-6lep06 ul:hover,
+.framer-18eru5x ul:hover,
+[data-framer-name="Edited Video Wrapper"] ul:hover,
+.ticker-track ul:hover,
+.ticker-inner:hover {
+  animation-play-state: paused !important;
+}
+
+@keyframes tickerAutoMove {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}

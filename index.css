@@ -618,7 +618,7 @@ strong { color: var(--text); }
 .ticker-track { overflow: hidden; mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
 .ticker-inner {
   display: flex; align-items: center;
-  animation: ticker 32s linear infinite;
+  animation: tickerAutoMove 28s linear infinite !important;
   width: max-content;
 }
 .ticker-inner span {
@@ -629,6 +629,38 @@ strong { color: var(--text); }
 .ticker-inner span:hover { color: var(--text); }
 .ticker-dot { color: var(--purple) !important; padding: 0 !important; font-size: 0.5rem !important; }
 @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+/* ── UNIVERSAL AUTO-MOVE TICKER & CAROUSEL ANIMATIONS ── */
+.framer-6lep06 ul,
+.framer-18eru5x ul,
+[data-framer-name="Edited Video Wrapper"] ul,
+[data-framer-name="Row 2"] ul,
+[data-framer-name="Row 3"] ul,
+.ticker-track ul {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: flex !important;
+  width: max-content !important;
+  animation: tickerAutoMove 28s linear infinite !important;
+  will-change: transform;
+}
+
+.framer-6lep06 ul:hover,
+.framer-18eru5x ul:hover,
+[data-framer-name="Edited Video Wrapper"] ul:hover,
+.ticker-track ul:hover,
+.ticker-inner:hover {
+  animation-play-state: paused !important;
+}
+
+@keyframes tickerAutoMove {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
 
 /* ── ABOUT ───────────────────────────────── */
 .about-section {

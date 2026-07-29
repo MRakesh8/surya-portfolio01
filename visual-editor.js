@@ -277,13 +277,13 @@
   }
 
   function pauseTickerAnimations() {
-    document.querySelectorAll('[class*="ticker"], [data-framer-name*="ticker"], .ticker-item').forEach(function(el) {
+    document.querySelectorAll('.framer-6lep06 ul, .framer-18eru5x ul, [data-framer-name*="Edited Video"], [class*="ticker"], [data-framer-name*="ticker"], .ticker-item').forEach(function(el) {
       el.style.setProperty('animation-play-state', 'paused', 'important');
     });
   }
 
   function resumeTickerAnimations() {
-    document.querySelectorAll('[class*="ticker"], [data-framer-name*="ticker"], .ticker-item').forEach(function(el) {
+    document.querySelectorAll('.framer-6lep06 ul, .framer-18eru5x ul, [data-framer-name*="Edited Video"], [class*="ticker"], [data-framer-name*="ticker"], .ticker-item').forEach(function(el) {
       el.style.removeProperty('animation-play-state');
     });
   }
@@ -315,7 +315,9 @@
     '* { scrollbar-width: thin !important; scrollbar-color: #7932ec #06060a !important; }',
     '[data-ve-sel="1"] { outline: 2.5px solid #2563eb !important; outline-offset: 3px !important; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.25), 0 0 12px rgba(37, 99, 235, 0.3) !important; border-radius: 4px !important; transition: outline 0.15s ease, box-shadow 0.15s ease !important; }',
     '[contenteditable="true"] { outline: 2.5px dashed #2563eb !important; outline-offset: 3px !important; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.25) !important; cursor: text !important; user-select: text !important; -webkit-user-select: text !important; pointer-events: auto !important; border-radius: 4px !important; }',
-    '[contenteditable="true"] * { user-select: text !important; -webkit-user-select: text !important; pointer-events: auto !important; }'
+    '[contenteditable="true"] * { user-select: text !important; -webkit-user-select: text !important; pointer-events: auto !important; }',
+    '.framer-6lep06 ul, .framer-18eru5x ul, [data-framer-name="Edited Video Wrapper"] ul, .ticker-track ul, .ticker-inner { opacity: 1 !important; visibility: visible !important; display: flex !important; width: max-content !important; animation: tickerAutoMove 28s linear infinite !important; }',
+    '@keyframes tickerAutoMove { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-50%, 0, 0); } }'
   ].join(' ');
   document.head.appendChild(adminStyle);
 
