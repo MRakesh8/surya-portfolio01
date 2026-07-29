@@ -1240,10 +1240,17 @@ strong { color: var(--text); }
 
 
 /* ── PERMANENT BULLETPROOF ANIMATION & SCROLL-REVEAL ENGINE ── */
+/* By default, elements are visible (fallback if JS completely fails) */
 [data-framer-appear-id] {
   opacity: 1;
   transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
   will-change: opacity, transform;
+}
+
+/* If JS is enabled, hide elements until they scroll into view */
+html.js-enabled [data-framer-appear-id]:not(.framer-animate-reveal) {
+  opacity: 0;
+  transform: translateY(28px);
 }
 
 .framer-animate-reveal {
@@ -1263,9 +1270,14 @@ strong { color: var(--text); }
 
 .reveal,
 .reveal-on-scroll {
+  opacity: 1;
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html.js-enabled .reveal:not(.visible),
+html.js-enabled .reveal-on-scroll:not(.visible) {
   opacity: 0;
   transform: translateY(24px);
-  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .reveal.visible,
