@@ -1240,30 +1240,25 @@ strong { color: var(--text); }
 
 
 /* ── PERMANENT BULLETPROOF ANIMATION & SCROLL-REVEAL ENGINE ── */
-/* Elements with data-framer-appear-id get a smooth fade+slide-up entrance animation */
 [data-framer-appear-id] {
-  opacity: 0;
-  transform: translateY(28px);
+  opacity: 1;
   transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
   will-change: opacity, transform;
 }
 
-/* When JS adds .framer-revealed class (or Framer adds its own), animate in */
-[data-framer-appear-id].framer-revealed,
-[data-framer-appear-id][data-visible="true"] {
-  opacity: 1 !important;
-  transform: translateY(0px) !important;
+.framer-animate-reveal {
+  animation: framerFadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
 }
 
-/* Fallback: if JS never runs, reveal everything after 2s animation delay */
-@keyframes framerAutoReveal {
-  0% { opacity: 0; transform: translateY(28px); }
-  100% { opacity: 1; transform: translateY(0px); }
-}
-
-/* Safety net: animate elements that are above the fold immediately */
-[data-framer-appear-id]:not(.framer-await-reveal) {
-  animation: framerAutoReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+@keyframes framerFadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  100% {
+    opacity: 1 !important;
+    transform: translateY(0px) !important;
+  }
 }
 
 .reveal,

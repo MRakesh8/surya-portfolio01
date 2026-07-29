@@ -287,39 +287,32 @@ window.initHomePage = function() {
   }
 
   /* ─── PERMANENT SCROLL-REVEAL & ANIMATION ENGINE ─── */
+  /* ─── PERMANENT SCROLL-REVEAL & TICKER ANIMATION ENGINE ─── */
   (function initScrollRevealEngine() {
-    // Mark elements that should await scroll reveal (off-screen ones)
     function setupRevealElements() {
+      // 1. Setup Scroll-Reveal for Framer Appear & Reveal Elements
       const framerEls = document.querySelectorAll('[data-framer-appear-id]');
       const revealEls = document.querySelectorAll('.reveal, .reveal-on-scroll');
 
-      // For framer appear elements: use IntersectionObserver for scroll reveal
       if (typeof IntersectionObserver !== 'undefined') {
         const framerObserver = new IntersectionObserver((entries) => {
           entries.forEach(entry => {
             if (entry.isIntersecting) {
-              entry.target.classList.add('framer-revealed');
-              // Remove the CSS animation so transition takes over
-              entry.target.style.animation = 'none';
+              entry.target.classList.add('framer-animate-reveal');
               framerObserver.unobserve(entry.target);
             }
           });
-        }, { threshold: 0.05, rootMargin: '80px 0px 80px 0px' });
+        }, { threshold: 0.05, rootMargin: '60px 0px 60px 0px' });
 
         framerEls.forEach(el => {
           const rect = el.getBoundingClientRect();
-          // If element is already in viewport on page load, reveal immediately
-          if (rect.top < window.innerHeight + 100) {
-            el.classList.add('framer-revealed');
-            el.style.animation = 'none';
+          if (rect.top < window.innerHeight + 60) {
+            el.classList.add('framer-animate-reveal');
           } else {
-            // Mark as awaiting reveal so CSS animation doesn't auto-fire
-            el.classList.add('framer-await-reveal');
             framerObserver.observe(el);
           }
         });
 
-        // Reveal observer for .reveal elements
         const revealObserver = new IntersectionObserver((entries) => {
           entries.forEach(entry => {
             if (entry.isIntersecting) {
@@ -331,20 +324,21 @@ window.initHomePage = function() {
 
         revealEls.forEach(el => revealObserver.observe(el));
       } else {
-        // Fallback: reveal all immediately
-        framerEls.forEach(el => el.classList.add('framer-revealed'));
+        framerEls.forEach(el => el.classList.add('framer-animate-reveal'));
         revealEls.forEach(el => el.classList.add('visible'));
       }
-    }
 
-    // Safety net: ensure nothing stays permanently hidden
-    function revealAllHidden() {
-      document.querySelectorAll('[data-framer-appear-id]').forEach(el => {
-        el.classList.add('framer-revealed');
-        el.style.animation = 'none';
-      });
-      document.querySelectorAll('.reveal, .reveal-on-scroll').forEach(el => {
-        el.classList.add('visible');
+      // 2. Continuous Ticker / Marquee Duping for Seamless Loop
+      const tickerContainers = document.querySelectorAll('.framer-6lep06, .framer-18eru5x, [data-framer-name="Edited Video Wrapper"], [data-framer-name="Row 2"], [data-framer-name="Row 3"], .ticker-track');
+      tickerContainers.forEach(container => {
+        const ul = container.querySelector('ul');
+        if (ul && !ul.dataset.duped) {
+          ul.dataset.duped = 'true';
+          const children = Array.from(ul.children);
+          if (children.length > 0 && children.length <= 6) {
+            children.forEach(child => ul.appendChild(child.cloneNode(true)));
+          }
+        }
       });
     }
 
@@ -353,11 +347,6 @@ window.initHomePage = function() {
     } else {
       setupRevealElements();
     }
-
-    // Ultimate safety net after 3 seconds - everything must be visible
-    window.addEventListener('load', () => {
-      setTimeout(revealAllHidden, 2500);
-    });
   })();
 
   /* ΓöÇΓöÇΓöÇ PROCESS STEPS TIMELINE SCROLL SCALING ΓöÇΓöÇΓöÇ */
@@ -781,12 +770,18 @@ window.initProjectsPage = function() {
 };
 
 
-// ΓöÇΓöÇ DOMContentLoaded Fallback Trigger ΓöÇΓöÇ
-document.addEventListener('DOMContentLoaded', () => {
-  const isProjects = window.location.pathname.includes('projects.html');
-  if (isProjects) {
+// ── Reliable Page Boot Trigger ──
+function bootPageLogic() {
+  const isProjects = window.location.pathname.includes('projects');
+  if (isProjects && typeof window.initProjectsPage === 'function') {
     window.initProjectsPage();
-  } else {
+  } else if (typeof window.initHomePage === 'function') {
     window.initHomePage();
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootPageLogic);
+} else {
+  bootPageLogic();
+}
