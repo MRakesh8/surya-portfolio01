@@ -40,9 +40,9 @@ function patchDOM(liveNode, savedNode) {
   if (liveNode.nodeType !== savedNode.nodeType) return;
 
   if (liveNode.nodeType === Node.ELEMENT_NODE) {
-    // If tag names differ, handle media element replacement (IMG <-> VIDEO)
+    // If tag names differ, handle media element replacement (IMG <-> VIDEO <-> IFRAME)
     if (liveNode.tagName !== savedNode.tagName) {
-      if (['IMG', 'VIDEO'].includes(liveNode.tagName) && ['IMG', 'VIDEO'].includes(savedNode.tagName)) {
+      if (['IMG', 'VIDEO', 'IFRAME'].includes(liveNode.tagName) && ['IMG', 'VIDEO', 'IFRAME'].includes(savedNode.tagName)) {
         const replacement = savedNode.cloneNode(true);
         liveNode.replaceWith(replacement);
         if (replacement.tagName === 'VIDEO') {

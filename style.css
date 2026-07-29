@@ -1088,3 +1088,26 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Outfit', sans-serif; line-height: 1.1; fo
     transform: translate3d(-50%, 0, 0);
   }
 }
+
+/* ── PERMANENT BULLETPROOF ANIMATION & AUTO-REVEAL ENGINE ── */
+[data-framer-appear-id],
+[style*="opacity:0.001"],
+[style*="opacity: 0.001"],
+[style*="translateY(55px)"],
+[style*="will-change:transform"],
+[style*="scale(0)"],
+.reveal,
+.reveal-on-scroll {
+  animation: framerAutoReveal 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  will-change: opacity, transform;
+}
+
+@keyframes framerAutoReveal {
+  0% {
+    opacity: 0.001;
+  }
+  100% {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

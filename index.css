@@ -1237,3 +1237,78 @@ strong { color: var(--text); }
   .cta-buttons .btn-lg { width: 100%; justify-content: center; }
   .phones-wrapper { transform: scale(0.82); transform-origin: center; margin-bottom: 20px; }
 }
+
+
+/* ── PERMANENT BULLETPROOF ANIMATION & SCROLL-REVEAL ENGINE ── */
+/* Elements with data-framer-appear-id get a smooth fade+slide-up entrance animation */
+[data-framer-appear-id] {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+/* When JS adds .framer-revealed class (or Framer adds its own), animate in */
+[data-framer-appear-id].framer-revealed,
+[data-framer-appear-id][data-visible="true"] {
+  opacity: 1 !important;
+  transform: translateY(0px) !important;
+}
+
+/* Fallback: if JS never runs, reveal everything after 2s animation delay */
+@keyframes framerAutoReveal {
+  0% { opacity: 0; transform: translateY(28px); }
+  100% { opacity: 1; transform: translateY(0px); }
+}
+
+/* Safety net: animate elements that are above the fold immediately */
+[data-framer-appear-id]:not(.framer-await-reveal) {
+  animation: framerAutoReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+}
+
+.reveal,
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal.visible,
+.reveal-on-scroll.visible {
+  opacity: 1 !important;
+  transform: translateY(0px) !important;
+}
+
+
+/* Ticker & Marquee Smooth Continuous Horizontal Auto-Move */
+.framer-6lep06 ul,
+.framer-18eru5x ul,
+[data-framer-name="Edited Video Wrapper"] ul,
+[data-framer-name="Row 2"] ul,
+[data-framer-name="Row 3"] ul,
+.ticker-track ul,
+.ticker-inner {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: flex !important;
+  width: max-content !important;
+  animation: tickerAutoMove 28s linear infinite !important;
+  will-change: transform;
+}
+
+.framer-6lep06 ul:hover,
+.framer-18eru5x ul:hover,
+[data-framer-name="Edited Video Wrapper"] ul:hover,
+.ticker-track ul:hover,
+.ticker-inner:hover {
+  animation-play-state: paused !important;
+}
+
+@keyframes tickerAutoMove {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}

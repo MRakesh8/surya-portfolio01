@@ -286,17 +286,79 @@ window.initHomePage = function() {
     }, { passive: true });
   }
 
-  /* ΓöÇΓöÇΓöÇ SCROLL REVEAL OBSERVER ΓöÇΓöÇΓöÇ */
-  const observerOptions = { threshold: 0.08, rootMargin: '0px 0px -40px 0px' };
-  const revealObserver = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('visible');
-      }
-    });
-  }, observerOptions);
+  /* ─── PERMANENT SCROLL-REVEAL & ANIMATION ENGINE ─── */
+  (function initScrollRevealEngine() {
+    // Mark elements that should await scroll reveal (off-screen ones)
+    function setupRevealElements() {
+      const framerEls = document.querySelectorAll('[data-framer-appear-id]');
+      const revealEls = document.querySelectorAll('.reveal, .reveal-on-scroll');
 
-  document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+      // For framer appear elements: use IntersectionObserver for scroll reveal
+      if (typeof IntersectionObserver !== 'undefined') {
+        const framerObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('framer-revealed');
+              // Remove the CSS animation so transition takes over
+              entry.target.style.animation = 'none';
+              framerObserver.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.05, rootMargin: '80px 0px 80px 0px' });
+
+        framerEls.forEach(el => {
+          const rect = el.getBoundingClientRect();
+          // If element is already in viewport on page load, reveal immediately
+          if (rect.top < window.innerHeight + 100) {
+            el.classList.add('framer-revealed');
+            el.style.animation = 'none';
+          } else {
+            // Mark as awaiting reveal so CSS animation doesn't auto-fire
+            el.classList.add('framer-await-reveal');
+            framerObserver.observe(el);
+          }
+        });
+
+        // Reveal observer for .reveal elements
+        const revealObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('visible');
+              revealObserver.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+        revealEls.forEach(el => revealObserver.observe(el));
+      } else {
+        // Fallback: reveal all immediately
+        framerEls.forEach(el => el.classList.add('framer-revealed'));
+        revealEls.forEach(el => el.classList.add('visible'));
+      }
+    }
+
+    // Safety net: ensure nothing stays permanently hidden
+    function revealAllHidden() {
+      document.querySelectorAll('[data-framer-appear-id]').forEach(el => {
+        el.classList.add('framer-revealed');
+        el.style.animation = 'none';
+      });
+      document.querySelectorAll('.reveal, .reveal-on-scroll').forEach(el => {
+        el.classList.add('visible');
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setupRevealElements);
+    } else {
+      setupRevealElements();
+    }
+
+    // Ultimate safety net after 3 seconds - everything must be visible
+    window.addEventListener('load', () => {
+      setTimeout(revealAllHidden, 2500);
+    });
+  })();
 
   /* ΓöÇΓöÇΓöÇ PROCESS STEPS TIMELINE SCROLL SCALING ΓöÇΓöÇΓöÇ */
   const procCards = document.querySelectorAll('.proc-card');
