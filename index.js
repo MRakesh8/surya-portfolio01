@@ -290,66 +290,23 @@ window.initHomePage = function() {
   /* ─── PERMANENT SCROLL-REVEAL & TICKER ANIMATION ENGINE ─── */
   (function initScrollRevealEngine() {
     function setupRevealElements() {
-      // 1. Setup Scroll-Reveal for Framer Appear & Reveal Elements
-      const framerEls = document.querySelectorAll('[data-framer-appear-id]');
-      const revealEls = document.querySelectorAll('.reveal, .reveal-on-scroll');
+      // 1. Setup Scroll-Reveal for Framer & Reveal Elements
+      const els = document.querySelectorAll('[data-framer-appear-id], .reveal, .reveal-on-scroll');
+      if (els.length > 0) {
+        if (typeof IntersectionObserver !== 'undefined') {
+          const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add('framer-animate-reveal', 'visible');
+                observer.unobserve(entry.target);
+              }
+            });
+          }, { threshold: 0.05, rootMargin: '40px 0px 40px 0px' });
 
-      if (typeof IntersectionObserver !== 'undefined') {
-        let staggerTimeout = null;
-        let intersectingFramerEls = [];
-        let intersectingRevealEls = [];
-
-        const framerObserver = new IntersectionObserver((entries) => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              intersectingFramerEls.push(entry.target);
-              framerObserver.unobserve(entry.target);
-            }
-          });
-          if (intersectingFramerEls.length > 0) {
-            clearTimeout(staggerTimeout);
-            staggerTimeout = setTimeout(() => {
-              intersectingFramerEls.forEach((el, i) => {
-                el.style.animationDelay = `${i * 0.1}s`;
-                el.classList.add('framer-animate-reveal');
-              });
-              intersectingFramerEls = [];
-            }, 10);
-          }
-        }, { threshold: 0.05, rootMargin: '60px 0px 60px 0px' });
-
-        framerEls.forEach((el, i) => {
-          const rect = el.getBoundingClientRect();
-          if (rect.top < window.innerHeight + 60) {
-            el.style.animationDelay = `${(i % 10) * 0.08}s`;
-            el.classList.add('framer-animate-reveal');
-          } else {
-            framerObserver.observe(el);
-          }
-        });
-
-        const revealObserver = new IntersectionObserver((entries) => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              intersectingRevealEls.push(entry.target);
-              revealObserver.unobserve(entry.target);
-            }
-          });
-          if (intersectingRevealEls.length > 0) {
-            setTimeout(() => {
-              intersectingRevealEls.forEach((el, i) => {
-                el.style.transitionDelay = `${i * 0.1}s`;
-                el.classList.add('visible');
-              });
-              intersectingRevealEls = [];
-            }, 10);
-          }
-        }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
-
-        revealEls.forEach(el => revealObserver.observe(el));
-      } else {
-        framerEls.forEach(el => el.classList.add('framer-animate-reveal'));
-        revealEls.forEach(el => el.classList.add('visible'));
+          els.forEach(el => observer.observe(el));
+        } else {
+          els.forEach(el => el.classList.add('framer-animate-reveal', 'visible'));
+        }
       }
 
       // 2. Continuous Ticker / Marquee Duping for Seamless Loop
