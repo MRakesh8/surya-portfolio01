@@ -295,18 +295,33 @@ window.initHomePage = function() {
       const revealEls = document.querySelectorAll('.reveal, .reveal-on-scroll');
 
       if (typeof IntersectionObserver !== 'undefined') {
+        let staggerTimeout = null;
+        let intersectingFramerEls = [];
+        let intersectingRevealEls = [];
+
         const framerObserver = new IntersectionObserver((entries) => {
           entries.forEach(entry => {
             if (entry.isIntersecting) {
-              entry.target.classList.add('framer-animate-reveal');
+              intersectingFramerEls.push(entry.target);
               framerObserver.unobserve(entry.target);
             }
           });
+          if (intersectingFramerEls.length > 0) {
+            clearTimeout(staggerTimeout);
+            staggerTimeout = setTimeout(() => {
+              intersectingFramerEls.forEach((el, i) => {
+                el.style.animationDelay = `${i * 0.1}s`;
+                el.classList.add('framer-animate-reveal');
+              });
+              intersectingFramerEls = [];
+            }, 10);
+          }
         }, { threshold: 0.05, rootMargin: '60px 0px 60px 0px' });
 
-        framerEls.forEach(el => {
+        framerEls.forEach((el, i) => {
           const rect = el.getBoundingClientRect();
           if (rect.top < window.innerHeight + 60) {
+            el.style.animationDelay = `${(i % 10) * 0.08}s`;
             el.classList.add('framer-animate-reveal');
           } else {
             framerObserver.observe(el);
@@ -316,10 +331,19 @@ window.initHomePage = function() {
         const revealObserver = new IntersectionObserver((entries) => {
           entries.forEach(entry => {
             if (entry.isIntersecting) {
-              entry.target.classList.add('visible');
+              intersectingRevealEls.push(entry.target);
               revealObserver.unobserve(entry.target);
             }
           });
+          if (intersectingRevealEls.length > 0) {
+            setTimeout(() => {
+              intersectingRevealEls.forEach((el, i) => {
+                el.style.transitionDelay = `${i * 0.1}s`;
+                el.classList.add('visible');
+              });
+              intersectingRevealEls = [];
+            }, 10);
+          }
         }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
 
         revealEls.forEach(el => revealObserver.observe(el));
