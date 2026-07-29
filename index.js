@@ -297,7 +297,13 @@ window.initHomePage = function() {
           const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
               if (entry.isIntersecting) {
-                entry.target.classList.add('framer-animate-reveal', 'visible');
+                // Double rAF ensures the browser paints the initial hidden state before adding the class,
+                // forcing the CSS transition to actually play on page load instead of instantly appearing.
+                requestAnimationFrame(() => {
+                  requestAnimationFrame(() => {
+                    entry.target.classList.add('framer-animate-reveal', 'visible');
+                  });
+                });
                 observer.unobserve(entry.target);
               }
             });
