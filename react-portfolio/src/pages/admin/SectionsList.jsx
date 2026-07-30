@@ -55,7 +55,7 @@ export default function SectionsList() {
               </p>
             </div>
             
-            <Link to={`/admin/pages/${section.section_key}`} style={{ textDecoration: 'none' }}>
+            <Link to={`/pages/${section.section_key}`} style={{ textDecoration: 'none' }}>
               <button style={{
                 background: '#222',
                 border: '1px solid #333',

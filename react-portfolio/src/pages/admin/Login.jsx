@@ -21,7 +21,7 @@ export default function Login() {
 
   useEffect(() => {
     if (!loading && user) {
-      navigate('/admin');
+      navigate('/');
     }
   }, [user, loading, navigate]);
 
@@ -31,7 +31,7 @@ export default function Login() {
     setError(null);
     try {
       await signIn(email, password);
-      navigate('/admin');
+      navigate('/');
     } catch (err) {
       setError(err.message || 'Failed to login');
     } finally {

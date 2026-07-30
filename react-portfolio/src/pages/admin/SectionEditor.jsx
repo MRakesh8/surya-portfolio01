@@ -125,7 +125,7 @@ export default function SectionEditor() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button onClick={() => navigate('/admin/pages')} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}>
+          <button onClick={() => navigate('/pages')} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}>
             <ArrowLeft size={20} />
           </button>
           <h2 style={{ margin: 0, fontSize: '24px' }}>Editing: {section.title}</h2>
@@ -215,4 +215,3 @@ export default function SectionEditor() {
     </div>
   );
 }
-

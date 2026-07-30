@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/admin/Login';
 import DashboardLayout from './pages/admin/DashboardLayout';
 import DashboardHome from './pages/admin/DashboardHome';
@@ -11,9 +11,8 @@ import './App.css';
 
 export default function App() {
   return (
-    <BrowserRouter basename="/admin">
+    <HashRouter>
       <Routes>
-        {/* Admin Routes with /admin basename */}
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<DashboardLayout />}>
           <Route index element={<DashboardHome />} />
@@ -25,6 +24,6 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
