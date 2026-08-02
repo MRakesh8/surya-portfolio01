@@ -26,8 +26,12 @@ export default function DashboardLayout() {
     navigate('/login');
   };
 
-  if (loading || !user) {
+  if (loading) {
     return <div className="admin-loading">Loading Dashboard...</div>;
+  }
+
+  if (!user) {
+    return null;
   }
 
   return (

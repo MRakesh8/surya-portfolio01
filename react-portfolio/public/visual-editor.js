@@ -98,6 +98,66 @@
   window.lastSelectedElement = null;
   var currentlyPausedVideo = null;
 
+  /* Undo / Redo history stack */
+  var undoStack = [];
+  var redoStack = [];
+  var maxHistory = 25;
+
+  function pushState() {
+    try {
+      var state = document.body.innerHTML;
+      if (!state || state.length < 200) return;
+      if (undoStack.length === 0 || undoStack[undoStack.length - 1] !== state) {
+        undoStack.push(state);
+        if (undoStack.length > maxHistory) undoStack.shift();
+        redoStack = [];
+        notifyHistoryState();
+      }
+    } catch(e){}
+  }
+
+  function notifyHistoryState() {
+    try {
+      window.parent.postMessage({
+        type: 'HISTORY_STATE',
+        canUndo: undoStack.length > 1,
+        canRedo: redoStack.length > 0
+      }, '*');
+    } catch(e){}
+  }
+
+  function doUndo() {
+    if (undoStack.length > 1) {
+      clearSelection();
+      resumePausedVideo();
+      var current = undoStack.pop();
+      redoStack.push(current);
+      var prev = undoStack[undoStack.length - 1];
+      document.body.innerHTML = prev;
+      notifyHistoryState();
+      window.parent.postMessage({ type: 'ELEMENT_INFO', found: false }, '*');
+    }
+  }
+
+  function doRedo() {
+    if (redoStack.length > 0) {
+      clearSelection();
+      resumePausedVideo();
+      var next = redoStack.pop();
+      undoStack.push(next);
+      document.body.innerHTML = next;
+      notifyHistoryState();
+      window.parent.postMessage({ type: 'ELEMENT_INFO', found: false }, '*');
+    }
+  }
+
+  function doResetDefault() {
+    window.location.reload();
+  }
+
+  /* Initial state push */
+  setTimeout(pushState, 500);
+
   /* Resume video playback */
   function resumePausedVideo() {
     if (currentlyPausedVideo) {
@@ -117,10 +177,10 @@
     }
   }
 
-  /* Inject admin cursor style */
+  /* Inject admin cursor and pointer override styles */
   var adminStyle = document.createElement('style');
   adminStyle.id = 've-styles-editor';
-  adminStyle.innerHTML = 'body { cursor: crosshair !important; }';
+  adminStyle.innerHTML = 'body { cursor: crosshair !important; } [data-framer-component-type], .framer-text, .framer-text * { pointer-events: auto !important; }';
   document.head.appendChild(adminStyle);
 
   /* Signal parent iframe is ready */
@@ -138,47 +198,34 @@
     handleDoubleClick(e.target, e.clientX, e.clientY);
   }, true);
 
-  /* ── Block link navigation in admin ── */
+  /* ── Block link navigation in admin (never unload iframe) ── */
   window.addEventListener('click', function(e) {
     if (e.target.closest('[contenteditable="true"]')) return;
     if (e.target.closest('.ve-mute-btn')) return;
     var link = e.target.closest('a');
     if (link) {
-      e.preventDefault(); e.stopPropagation();
-      try {
-        var url = new URL(link.href);
-        if (url.host === window.location.host && url.pathname !== window.location.pathname) {
-          url.searchParams.set('admin', 'true');
-          window.location.href = url.toString();
-        }
-      } catch(err) {}
+      e.preventDefault();
+      e.stopPropagation();
     }
   }, true);
 
-  /* ── Message handler ── */
-  window.addEventListener('message', function(event) {
-    try {
-      if (!event.data || typeof event.data !== 'object') return;
-      var msg = event.data;
-      if (msg.type === 'EDIT_ACTION')   handleEditAction(msg.action, msg.value);
-      if (msg.type === 'MEDIA_SELECTED' && msg.url) applyMedia(msg.url);
-      if (msg.type === 'REQUEST_SAVE')  doSave();
-      if (msg.type === 'DESELECT') {
-        clearSelection();
-        resumePausedVideo();
-        currentTarget = null;
-      }
-    } catch(e) {
-      console.error('[VE] Message handler error:', e);
-    }
-  });
+  /* ── Helper: Check if node is a top-level page root container ── */
+  function isRootContainer(node) {
+    if (!node || node === document.body || node === document.documentElement) return true;
+    if (node.id === 'main' || (node.classList && (node.classList.contains('site-wrapper') || node.classList.contains('framer-DOCwU') || node.classList.contains('framer-iEKBO')))) return true;
+    if (node.hasAttribute && node.hasAttribute('data-framer-root')) return true;
+    var fn = node.getAttribute ? (node.getAttribute('data-framer-name') || '') : '';
+    if (fn === 'Desktop' || fn === 'Tablet' || fn === 'Mobile' || fn === 'Page' || fn === 'Content' || fn === 'Root') return true;
+    return false;
+  }
 
   /** Check if node is a text tag */
   function isTextNodeOrTag(node) {
-    if (!node) return false;
+    if (!node || isRootContainer(node)) return false;
     if (node.nodeType === 3 && node.textContent.trim()) return true;
-    var tags = ['H1','H2','H3','H4','H5','H6','P','SPAN','A','LABEL','B','STRONG','EM','I','BUTTON'];
-    if (tags.indexOf(node.tagName) !== -1 && node.textContent.trim()) return true;
+    var tags = ['H1','H2','H3','H4','H5','H6','P','SPAN','A','LABEL','B','STRONG','EM','I','BUTTON','DIV','OPTION','SELECT'];
+    if (tags.indexOf(node.tagName) !== -1 && node.children.length === 0 && node.textContent.trim()) return true;
+    if (tags.indexOf(node.tagName) !== -1 && node.textContent.trim() && node.textContent.trim().length < 500) return true;
     if (node.classList && node.classList.contains('framer-text') && node.textContent.trim()) return true;
     if (node.getAttribute && node.getAttribute('data-framer-component-type') === 'RichTextContainer') return true;
     return false;
@@ -186,7 +233,7 @@
 
   function findVideoInTree(el, maxDepth) {
     var node = el;
-    for (var d = 0; d < maxDepth && node && node !== document.body; d++) {
+    for (var d = 0; d < maxDepth && node && !isRootContainer(node); d++) {
       if (node.tagName === 'VIDEO') return node;
       var vid = node.querySelector ? node.querySelector('video') : null;
       if (vid) return vid;
@@ -197,7 +244,7 @@
 
   function findImgInTree(el, maxDepth) {
     var node = el;
-    for (var d = 0; d < maxDepth && node && node !== document.body; d++) {
+    for (var d = 0; d < maxDepth && node && !isRootContainer(node); d++) {
       if (node.tagName === 'IMG') return node;
       var img = node.querySelector ? node.querySelector('img') : null;
       if (img) return img;
@@ -206,54 +253,51 @@
     return null;
   }
 
+  window.lastSelectedVideo = null;
+  window.lastSelectedImg = null;
+  window.lastSelectedText = null;
+
   /* ── UNIVERSAL COMPONENT DOUBLE CLICK HANDLER ── */
   function handleDoubleClick(el, clickX, clickY) {
-    if (!el || el === document.body || el === document.documentElement) {
-      resumePausedVideo();
-      clearSelection();
-      window.parent.postMessage({ type: 'ELEMENT_INFO', found: false }, '*');
-      return;
-    }
-
-    var target = null;
-
-    // 1. Direct hit on VIDEO or IMG tag
-    if (el.tagName === 'VIDEO') {
-      target = el;
-    } else if (el.tagName === 'IMG') {
-      target = el;
-    } else {
-      // 2. Look for VIDEO in component tree (up to 12 levels)
-      var treeVideo = findVideoInTree(el, 12);
-      if (treeVideo) {
-        if (isTextNodeOrTag(el)) {
-          target = el; // Specific text inside video component
-        } else {
-          target = treeVideo; // Video element / video card
-        }
+    if (!el || isRootContainer(el)) {
+      // If clicked element was root container, try finding precise element under cursor
+      var pointEl = document.elementFromPoint(clickX, clickY);
+      if (pointEl && !isRootContainer(pointEl)) {
+        el = pointEl;
       } else {
-        // 3. Look for IMG in component tree (up to 10 levels)
-        var treeImg = findImgInTree(el, 10);
-        if (treeImg) {
-          if (isTextNodeOrTag(el)) {
-            target = el; // Specific text inside image component
-          } else {
-            target = treeImg; // Image element / image card
-          }
-        } else {
-          // 4. Direct text element
-          if (isTextNodeOrTag(el)) {
-            target = el;
-          } else {
-            // 5. UNIVERSAL COMPONENT FALLBACK: Any div, article, section, card, button, etc.
-            target = el.closest('article, [data-framer-name], .reel-card, .review-card, section, header, footer, nav, button, a') || el;
-          }
-        }
+        resumePausedVideo();
+        clearSelection();
+        window.parent.postMessage({ type: 'ELEMENT_INFO', found: false }, '*');
+        return;
       }
     }
 
-    if (!target) {
-      console.log('[VE] Double click — no target');
+    // 1. Find parent card / component frame
+    var card = el.closest('.p-card, .reel-card, .review-card, article, [data-framer-name], section, header, footer, nav, button, a');
+    if (card && isRootContainer(card)) card = null;
+
+    // 2. Locate video, img, and text in component tree
+    var treeVideo = (el.tagName === 'VIDEO') ? el : findVideoInTree(el, 12) || (card ? card.querySelector('video') : null);
+    var treeImg   = (el.tagName === 'IMG')   ? el : findImgInTree(el, 10)   || (card ? card.querySelector('img') : null);
+
+    var targetText = null;
+    if (isTextNodeOrTag(el)) {
+      targetText = el;
+    } else if (card) {
+      targetText = card.querySelector('h1,h2,h3,h4,h5,h6,p,span,.p-name,.p-desc');
+    }
+    if (!targetText && isTextNodeOrTag(card)) {
+      targetText = card;
+    }
+
+    // 3. Primary selection target
+    var target = treeVideo || treeImg || targetText || card || el;
+    if (isRootContainer(target)) {
+      target = el;
+    }
+
+    if (!target || isRootContainer(target)) {
+      console.log('[VE] Double click — no valid specific target');
       resumePausedVideo();
       clearSelection();
       window.parent.postMessage({ type: 'ELEMENT_INFO', found: false }, '*');
@@ -262,39 +306,66 @@
 
     clearSelection();
 
+    // Clear previous active target markers
+    document.querySelectorAll('[data-ve-active-target]').forEach(function(n) {
+      n.removeAttribute('data-ve-active-target');
+    });
+
+    // Mark persistent active target markers
+    if (treeVideo) treeVideo.setAttribute('data-ve-active-target', 'video');
+    if (treeImg) treeImg.setAttribute('data-ve-active-target', 'img');
+    if (card) card.setAttribute('data-ve-active-target', 'card');
+    if (target) target.setAttribute('data-ve-active-target', 'target');
+
+    // Store references
+    window.lastSelectedVideo = treeVideo;
+    window.lastSelectedImg   = treeImg;
+    window.lastSelectedText  = targetText;
+
     // Pause video playback while editing options are open
-    if (target.tagName === 'VIDEO') {
-      if (currentlyPausedVideo && currentlyPausedVideo !== target) {
+    if (treeVideo) {
+      if (currentlyPausedVideo && currentlyPausedVideo !== treeVideo) {
         resumePausedVideo();
       }
-      currentlyPausedVideo = target;
-      if (!target.paused) {
-        try { target.pause(); } catch(e){}
+      currentlyPausedVideo = treeVideo;
+      if (!treeVideo.paused) {
+        try { treeVideo.pause(); } catch(e){}
       }
     } else {
       resumePausedVideo();
     }
 
-    target.setAttribute('data-ve-sel', '1');
-    target.style.outline = '2px solid #7932ec';
+    var outlineEl = card || target;
+    outlineEl.setAttribute('data-ve-sel', '1');
+    outlineEl.style.outline = '2px solid #7932ec';
     currentTarget = target;
     window.lastSelectedElement = target;
 
-    var isVideoTag = (target.tagName === 'VIDEO') || (target.querySelector && target.querySelector('video') !== null);
-    var isImgTag   = (target.tagName === 'IMG')   || (target.querySelector && target.querySelector('img') !== null);
-    var isMedia    = isVideoTag || isImgTag;
+    var hasVideo = Boolean(treeVideo);
+    var hasImage = Boolean(treeImg);
+    var hasText  = Boolean(targetText && targetText.textContent && targetText.textContent.trim().length > 0);
+    var isMedia  = hasVideo || hasImage;
 
-    var rect = target.getBoundingClientRect();
-    if ((rect.width === 0 || rect.height === 0) && target.parentElement) {
-      rect = target.parentElement.getBoundingClientRect();
+    var rect = outlineEl.getBoundingClientRect();
+    if ((rect.width === 0 || rect.height === 0) && outlineEl.parentElement) {
+      rect = outlineEl.parentElement.getBoundingClientRect();
     }
+
+    var linkEl = outlineEl.closest('a') || (target.tagName === 'A' ? target : null);
+    var isLink = Boolean(linkEl);
+    var linkHref = linkEl ? linkEl.getAttribute('href') || '' : '';
 
     var info = {
       type: 'ELEMENT_INFO',
       found: true,
       isMedia: isMedia,
+      hasVideo: hasVideo,
+      hasImage: hasImage,
+      hasText: hasText,
+      isLink: isLink,
+      linkHref: linkHref,
       tag: target.tagName,
-      isVideo: isVideoTag,
+      isVideo: hasVideo,
       rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
     };
     console.log('[VE] ELEMENT_INFO →', info);
@@ -307,47 +378,111 @@
     var target = currentTarget || window.lastSelectedElement;
     if (!target) { console.log('[VE] No target element!'); return; }
 
+    pushState();
+
     if (action === 'EDIT_TEXT') {
-      target.contentEditable = 'true';
-      target.style.outline = '2px dashed #7932ec';
-      target.style.setProperty('pointer-events', 'all', 'important');
-      target.style.setProperty('user-select', 'text', 'important');
-      target.style.setProperty('-webkit-user-select', 'text', 'important');
-      target.focus();
+      var textNode = window.lastSelectedText || (isTextNodeOrTag(target) ? target : null);
+      if (!textNode || textNode.tagName === 'VIDEO' || textNode.tagName === 'IMG') {
+        var parentCard = target.closest ? target.closest('.p-card, .reel-card, .review-card, article, [data-framer-name], section') : null;
+        if (parentCard) {
+          textNode = parentCard.querySelector('h1,h2,h3,h4,h5,h6,p,span,.p-name,.p-desc') || parentCard;
+        } else {
+          textNode = target;
+        }
+      }
+
+      function enableEditing(n) {
+        if (!n || n.nodeType !== 1) return;
+        if (n.classList && (n.classList.contains('p-chk') || n.classList.contains('p-badge') || n.classList.contains('ve-mute-btn'))) {
+          n.setAttribute('contenteditable', 'false');
+          return;
+        }
+        if (n.tagName === 'VIDEO' || n.tagName === 'IMG') return;
+
+        n.contentEditable = 'true';
+        n.style.setProperty('outline', '2px dashed #7932ec', 'important');
+        n.style.setProperty('pointer-events', 'auto', 'important');
+        n.style.setProperty('user-select', 'text', 'important');
+        n.style.setProperty('-webkit-user-select', 'text', 'important');
+      }
+
+      function disableEditing(n) {
+        if (!n || n.nodeType !== 1) return;
+        n.removeAttribute('contenteditable');
+        n.style.outline = '';
+        n.style.removeProperty('pointer-events');
+        n.style.removeProperty('user-select');
+        n.style.removeProperty('-webkit-user-select');
+        if (n.children) {
+          for (var i = 0; i < n.children.length; i++) {
+            disableEditing(n.children[i]);
+          }
+        }
+      }
+
+      enableEditing(textNode);
+      textNode.focus();
       try {
         var range = document.createRange();
         var sel   = window.getSelection();
-        range.selectNodeContents(target);
+        range.selectNodeContents(textNode);
         range.collapse(false);
         sel.removeAllRanges();
         sel.addRange(range);
       } catch(e) {}
-      target.addEventListener('blur', function onBlur() {
-        target.removeEventListener('blur', onBlur);
-        target.contentEditable = 'false';
-        target.style.outline = '';
-        target.style.removeProperty('pointer-events');
-        target.style.removeProperty('user-select');
-        target.style.removeProperty('-webkit-user-select');
+
+      textNode.addEventListener('blur', function onBlur() {
+        textNode.removeEventListener('blur', onBlur);
+        disableEditing(textNode);
         resumePausedVideo();
+        pushState();
         window.parent.postMessage({ type: 'EDITING_DONE' }, '*');
-      }, { once: true });
+      }, { once: true, capture: true });
+    }
+    else if (action === 'EDIT_LINK' && value !== undefined) {
+      var aTag = target.closest('a') || (target.tagName === 'A' ? target : null);
+      if (aTag) {
+        aTag.setAttribute('href', value);
+      } else {
+        target.setAttribute('data-href', value);
+      }
+      resumePausedVideo();
     }
     else if (action === 'CHANGE_COLOR' && value) {
-      target.style.setProperty('color', value, 'important');
-      target.querySelectorAll('span,p,h1,h2,h3,h4,h5,h6')
+      var colorTarget = window.lastSelectedText || target;
+      colorTarget.style.setProperty('color', value, 'important');
+      colorTarget.querySelectorAll('span,p,h1,h2,h3,h4,h5,h6')
         .forEach(function(n){ n.style.setProperty('color', value, 'important'); });
       resumePausedVideo();
     }
+    else if (action === 'CHANGE_BG_COLOR' && value) {
+      target.style.setProperty('background-color', value, 'important');
+      resumePausedVideo();
+    }
     else if (action === 'CHANGE_FONT' && value) {
-      target.style.setProperty('font-family', value, 'important');
-      target.querySelectorAll('span,p,h1,h2,h3,h4,h5,h6')
+      var fontTarget = window.lastSelectedText || target;
+      fontTarget.style.setProperty('font-family', value, 'important');
+      fontTarget.querySelectorAll('span,p,h1,h2,h3,h4,h5,h6')
         .forEach(function(n){ n.style.setProperty('font-family', value, 'important'); });
       resumePausedVideo();
     }
+    else if (action === 'DUPLICATE') {
+      resumePausedVideo();
+      var dupTarget = target.closest('.p-card, .reel-card, .review-card, article') || target;
+      var clone = dupTarget.cloneNode(true);
+      clone.removeAttribute('data-ve-sel');
+      clone.removeAttribute('data-ve-active-target');
+      clone.style.outline = '';
+      if (dupTarget.nextSibling) {
+        dupTarget.parentNode.insertBefore(clone, dupTarget.nextSibling);
+      } else {
+        dupTarget.parentNode.appendChild(clone);
+      }
+    }
     else if (action === 'DELETE') {
       resumePausedVideo();
-      target.remove(); currentTarget = null; window.lastSelectedElement = null;
+      var delTarget = target.closest('.p-card, .reel-card, .review-card, article') || target;
+      delTarget.remove(); currentTarget = null; window.lastSelectedElement = null;
     }
     else if (action === 'REPLACE_MEDIA') {
       window.parent.postMessage({ type: 'REQUEST_MEDIA' }, '*');
@@ -356,35 +491,126 @@
 
   /* ── APPLY MEDIA (Per-frame exact sizing and fitting) ── */
   function applyMedia(url) {
-    var t = currentTarget || window.lastSelectedElement;
+    if (!url) return;
+    var cleanUrl = url.trim();
+
+    var isVideoUrl = /\.(mp4|webm|mov|m4v|ogv|mkv|avi|blob)/i.test(cleanUrl) || 
+                     cleanUrl.startsWith('blob:') ||
+                     cleanUrl.startsWith('data:video') ||
+                     cleanUrl.includes('video') || 
+                     (cleanUrl.includes('/media/') && !/\.(png|jpe?g|gif|webp|svg)/i.test(cleanUrl)) ||
+                     cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be') || cleanUrl.includes('instagram.com');
+
+    // Multi-stage target resolution
+    var t = null;
+
+    // Stage 1: Check persistent active target markers in DOM
+    if (isVideoUrl) {
+      t = document.querySelector('video[data-ve-active-target]') || 
+          document.querySelector('[data-ve-active-target="card"] video') ||
+          document.querySelector('[data-ve-active-target="target"] video') ||
+          window.lastSelectedVideo;
+    } else {
+      t = document.querySelector('img[data-ve-active-target]') || 
+          document.querySelector('[data-ve-active-target="card"] img') ||
+          document.querySelector('[data-ve-active-target="target"] img') ||
+          window.lastSelectedImg;
+    }
+
+    // Stage 2: Fallback to currentTarget / lastSelectedElement
+    if (!t) {
+      t = currentTarget || window.lastSelectedElement;
+    }
+
+    // Stage 3: If t is a container or text node, look for inner video/img in parent card component
+    if (t && t.tagName !== 'IMG' && t.tagName !== 'VIDEO' && t.tagName !== 'IFRAME') {
+      var card = (t.closest ? t.closest('.p-card, .reel-card, .review-card, article, [data-framer-name], section') : null) || t.parentElement;
+      var childVid = (isVideoUrl && card) ? card.querySelector('video') : (t.querySelector ? t.querySelector('video') : null);
+      var childImg = (!isVideoUrl && card) ? card.querySelector('img') : (t.querySelector ? t.querySelector('img') : null);
+      var childIfr = card ? card.querySelector('iframe') : (t.querySelector ? t.querySelector('iframe') : null);
+
+      if (childVid) t = childVid;
+      else if (childImg) t = childImg;
+      else if (childIfr) t = childIfr;
+    }
+
+    // Stage 4: Ultimate fallback — if still no target, search any active card in document
+    if (!t) {
+      var activeCard = document.querySelector('[data-ve-active-target]') || document.querySelector('[data-ve-sel]');
+      if (activeCard) {
+        t = isVideoUrl ? activeCard.querySelector('video') : activeCard.querySelector('img');
+        if (!t) t = activeCard;
+      }
+    }
+
     if (!t) {
       console.warn('[VE] No target element available to replace media!');
       return;
     }
-    var cleanUrl = url.trim();
 
-    if (t.tagName !== 'IMG' && t.tagName !== 'VIDEO') {
-      var childVid = t.querySelector('video');
-      var childImg = t.querySelector('img');
+    // If t is a container or text node, look for video/img in parent card component
+    if (t.tagName !== 'IMG' && t.tagName !== 'VIDEO' && t.tagName !== 'IFRAME') {
+      var card = (t.closest ? t.closest('.p-card, .reel-card, .review-card, article, [data-framer-name], section') : null) || t.parentElement;
+      var childVid = (isVideoUrl && card) ? card.querySelector('video') : (t.querySelector ? t.querySelector('video') : null);
+      var childImg = (!isVideoUrl && card) ? card.querySelector('img') : (t.querySelector ? t.querySelector('img') : null);
+      var childIfr = card ? card.querySelector('iframe') : (t.querySelector ? t.querySelector('iframe') : null);
+
       if (childVid) t = childVid;
       else if (childImg) t = childImg;
+      else if (childIfr) t = childIfr;
     }
-
-    var isVideo = /\.(mp4|webm|mov|m4v|ogv|mkv|avi|blob)/i.test(cleanUrl) || 
-                  cleanUrl.includes('video') || 
-                  (cleanUrl.includes('/media/') && !/\.(png|jpe?g|gif|webp|svg)/i.test(cleanUrl));
 
     var origClass = t.className || '';
     var origStyle = t.getAttribute('style') || '';
 
+    // Detect YouTube / Instagram URLs
+    var ytMatch = cleanUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+    var igMatch = cleanUrl.match(/instagram\.com\/(?:p|reel)\/([^"&?\/\s]+)/i);
+
+    if (ytMatch && ytMatch[1]) {
+      pushState();
+      var embedYtUrl = 'https://www.youtube.com/embed/' + ytMatch[1] + '?autoplay=1&mute=1&loop=1&playlist=' + ytMatch[1] + '&controls=0&playsinline=1';
+      var iframeYt = document.createElement('iframe');
+      iframeYt.src = embedYtUrl;
+      iframeYt.style.cssText = 'width:100%!important;height:100%!important;border:none!important;display:block!important;border-radius:inherit!important;pointer-events:none;';
+      iframeYt.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
+      if (origClass) iframeYt.className = origClass;
+      t.replaceWith(iframeYt);
+      t = iframeYt;
+      currentlyPausedVideo = null;
+      currentTarget = t;
+      window.lastSelectedElement = t;
+      pushState();
+      return;
+    } else if (igMatch && igMatch[1]) {
+      pushState();
+      var embedIgUrl = 'https://www.instagram.com/p/' + igMatch[1] + '/embed/';
+      var iframeIg = document.createElement('iframe');
+      iframeIg.src = embedIgUrl;
+      iframeIg.style.cssText = 'width:100%!important;height:100%!important;border:none!important;display:block!important;border-radius:inherit!important;pointer-events:none;';
+      if (origClass) iframeIg.className = origClass;
+      t.replaceWith(iframeIg);
+      t = iframeIg;
+      currentlyPausedVideo = null;
+      currentTarget = t;
+      window.lastSelectedElement = t;
+      pushState();
+      return;
+    }
+
+    pushState();
+
+    var isVideo = isVideoUrl;
     var computedStyle = window.getComputedStyle(t);
     var computedRadius = computedStyle.borderRadius;
 
     if (isVideo) {
       if (t.tagName === 'VIDEO') {
         t.removeAttribute('poster');
+        t.querySelectorAll('source').forEach(function(s){ s.src = cleanUrl; });
         t.src = cleanUrl;
         t.muted = true;
+        t.defaultMuted = true;
         t.loop = true;
         t.autoplay = true;
         t.setAttribute('playsinline', '');
@@ -394,13 +620,15 @@
         t.style.setProperty('height', '100%', 'important');
         t.style.setProperty('display', 'block', 'important');
         t.load();
-        t.play().catch(function(){});
+        var p1 = t.play();
+        if (p1 !== undefined) p1.catch(function(){});
       } else {
-        // Converting IMG -> VIDEO
+        // Converting IMG/DIV -> VIDEO
         var v = document.createElement('video');
         v.autoplay = true;
         v.loop = true;
         v.muted = true;
+        v.defaultMuted = true;
         v.setAttribute('playsinline', '');
         v.setAttribute('webkit-playsinline', '');
         if (origClass) v.className = origClass;
@@ -417,8 +645,10 @@
         v.src = cleanUrl;
         t.replaceWith(v);
         t = v;
+        window.lastSelectedVideo = v;
         v.load();
-        v.play().catch(function(){});
+        var p2 = v.play();
+        if (p2 !== undefined) p2.catch(function(){});
       }
       delete t.dataset.muteInjected;
       setTimeout(injectMuteControls, 100);
@@ -449,6 +679,7 @@
         img.src = cleanUrl;
         t.replaceWith(img);
         t = img;
+        window.lastSelectedImg = img;
       }
     }
 
@@ -469,8 +700,10 @@
       var clone = document.body.cloneNode(true);
       var badge = clone.querySelector('#__framer-badge-container');
       if (badge) badge.remove();
-      clone.querySelectorAll('[data-ve-sel]').forEach(function(n) {
-        n.removeAttribute('data-ve-sel'); n.style.outline = '';
+      clone.querySelectorAll('[data-ve-sel], [data-ve-active-target]').forEach(function(n) {
+        n.removeAttribute('data-ve-sel');
+        n.removeAttribute('data-ve-active-target');
+        n.style.outline = '';
       });
       var styleEditor = clone.querySelector('#ve-styles-editor');
       if (styleEditor) styleEditor.remove();

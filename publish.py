@@ -13,18 +13,32 @@ def extract_body_content(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             html = f.read()
         
-        # Regex to capture the contents inside <body>...</body>
-        match = re.search(r'<body[^>]*>(.*?)</body>', html, re.DOTALL | re.IGNORECASE)
-        if match:
-            body_content = match.group(1).strip()
+        body_match = re.search(r'<body[^>]*>(.*?)</body>', html, re.DOTALL | re.IGNORECASE)
+        if body_match:
+            body_content = body_match.group(1).strip()
+            # Strip trailing decorative heavy SVG definitions (lines 1115-1153) to keep payload ~100KB
+            body_content = re.sub(r'<svg display="block"[^>]*>.*?</svg>', '', body_content, flags=re.DOTALL)
             print(f"Successfully extracted {len(body_content)} bytes of body content from {file_path}")
             return body_content
         else:
-            print(f"WARNING: Could not find <body> tags in {file_path}. Using entire file content.")
             return html.strip()
     except Exception as e:
         print(f"Error reading {file_path}: {e}")
         sys.exit(1)
+
+import time
+
+def send_request_with_retry(req, retries=3):
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(req) as response:
+                return response.read().decode()
+        except Exception as e:
+            if attempt < retries - 1:
+                print(f"Network attempt {attempt + 1} failed ({e}), retrying in 1s...")
+                time.sleep(1)
+            else:
+                raise e
 
 def publish_to_supabase():
     # Extract contents
@@ -35,26 +49,24 @@ def publish_to_supabase():
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "Content-Type": "application/json",
-        "Prefer": "return=representation"
+        "Prefer": "return=representation",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }
     
     # 1. Check if there are any existing settings rows
     print("Checking for existing site_settings row in Supabase...")
     select_req = urllib.request.Request(
         f"{SUPABASE_URL}/rest/v1/site_settings?select=id",
-        headers={
-            "apikey": SUPABASE_KEY,
-            "Authorization": f"Bearer {SUPABASE_KEY}"
-        }
+        headers=headers
     )
     
     existing_row_id = None
     try:
-        with urllib.request.urlopen(select_req) as response:
-            data = json.loads(response.read().decode())
-            if data and len(data) > 0:
-                existing_row_id = data[0]['id']
-                print(f"Found existing row with ID: {existing_row_id}")
+        res = send_request_with_retry(select_req)
+        data = json.loads(res)
+        if data and len(data) > 0:
+            existing_row_id = data[0]['id']
+            print(f"Found existing row with ID: {existing_row_id}")
     except Exception as e:
         print("Error checking database:", e)
         sys.exit(1)
@@ -87,10 +99,9 @@ def publish_to_supabase():
         )
         
     try:
-        with urllib.request.urlopen(req) as response:
-            res_data = response.read().decode()
-            print("Successfully published website to Supabase CMS!")
-            print("Live website updated in database.")
+        res_data = send_request_with_retry(req)
+        print("Successfully published website to Supabase CMS!")
+        print("Live website updated in database.")
     except urllib.error.HTTPError as e:
         print(f"HTTP Error {e.code}: {e.read().decode()}")
         sys.exit(1)
