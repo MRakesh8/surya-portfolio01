@@ -4,6 +4,9 @@
    3D tilt, and dynamic filtering for the Scrollz Agency.
    ============================================================ */
 
+// Detect visual editor admin mode
+const veIsAdmin = new URLSearchParams(window.location.search).get('admin') === 'true';
+
 // ΓöÇΓöÇ Web Audio Synth for Latency-Free Futuristic UI Sounds ΓöÇΓöÇ
 const UISound = {
   ctx: null,
@@ -184,7 +187,7 @@ window.initHomePage = function() {
     const speed = 0.8;
 
     function animateMarquee() {
-      if (!paused) {
+      if (!paused && !veIsAdmin) {
         pos += speed;
         const half = track.scrollWidth / 2;
         if (pos >= half) {
@@ -270,7 +273,7 @@ window.initHomePage = function() {
     });
   }, observerOptions);
 
-  document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+  document.querySelectorAll('.fade-up, .fade-up-delay, .fade-up-delay2, .reveal').forEach(el => revealObserver.observe(el));
 
   /* ΓöÇΓöÇΓöÇ PROCESS STEPS TIMELINE SCROLL SCALING ΓöÇΓöÇΓöÇ */
   const procCards = document.querySelectorAll('.proc-card');

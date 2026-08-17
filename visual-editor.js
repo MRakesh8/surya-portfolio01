@@ -92,7 +92,7 @@
    * ══════════════════════════════════════════════════ */
   if (!isAdmin) return;
 
-  console.log('[VE] visual-editor v32 starting…');
+  console.log('[VE] visual-editor v33 starting…');
 
   var currentTarget = null;
   window.lastSelectedElement = null;
@@ -134,6 +134,23 @@
       redoStack.push(current);
       var prev = undoStack[undoStack.length - 1];
       document.body.innerHTML = prev;
+      // Clear all stale DOM references after innerHTML replacement
+      currentTarget = null;
+      window.lastSelectedElement = null;
+      window.lastSelectedVideo = null;
+      window.lastSelectedVideoId = null;
+      window.lastSelectedImg = null;
+      window.lastSelectedText = null;
+      currentlyPausedVideo = null;
+      if (window.VideoManager) window.VideoManager.scanVideos();
+      // Re-inject admin styles and mute controls
+      if (!document.getElementById('ve-styles-editor')) {
+        var s = document.createElement('style');
+        s.id = 've-styles-editor';
+        s.innerHTML = 'body { cursor: crosshair !important; } [data-framer-component-type], .framer-text, .framer-text * { pointer-events: auto !important; }';
+        document.head.appendChild(s);
+      }
+      injectMuteControls();
       notifyHistoryState();
       window.parent.postMessage({ type: 'ELEMENT_INFO', found: false }, '*');
     }
@@ -146,6 +163,23 @@
       var next = redoStack.pop();
       undoStack.push(next);
       document.body.innerHTML = next;
+      // Clear all stale DOM references after innerHTML replacement
+      currentTarget = null;
+      window.lastSelectedElement = null;
+      window.lastSelectedVideo = null;
+      window.lastSelectedVideoId = null;
+      window.lastSelectedImg = null;
+      window.lastSelectedText = null;
+      currentlyPausedVideo = null;
+      if (window.VideoManager) window.VideoManager.scanVideos();
+      // Re-inject admin styles and mute controls
+      if (!document.getElementById('ve-styles-editor')) {
+        var s = document.createElement('style');
+        s.id = 've-styles-editor';
+        s.innerHTML = 'body { cursor: crosshair !important; } [data-framer-component-type], .framer-text, .framer-text * { pointer-events: auto !important; }';
+        document.head.appendChild(s);
+      }
+      injectMuteControls();
       notifyHistoryState();
       window.parent.postMessage({ type: 'ELEMENT_INFO', found: false }, '*');
     }
@@ -191,6 +225,21 @@
     console.error('[VE] Failed to send IFRAME_READY', e);
   }
 
+  /* ── Receive messages from parent admin panel ── */
+  window.addEventListener('message', function(event) {
+    if (!event.data || typeof event.data !== 'object') return;
+    var msg = event.data;
+    switch (msg.type) {
+      case 'MEDIA_SELECTED':  applyMedia(msg.url, msg.logicalVideoId); break;
+      case 'EDIT_ACTION':     handleEditAction(msg.action, msg.value); break;
+      case 'UNDO':            doUndo(); break;
+      case 'REDO':            doRedo(); break;
+      case 'REQUEST_SAVE':    doSave(); break;
+      case 'DESELECT':        clearSelection(); resumePausedVideo(); break;
+      case 'RESET_DEFAULT':   doResetDefault(); break;
+    }
+  });
+
   /* ── Capture double-click ── */
   window.addEventListener('dblclick', function(e) {
     e.preventDefault();
@@ -231,13 +280,63 @@
     return false;
   }
 
-  function findVideoInTree(el, maxDepth) {
+  function isPointInside(rect, x, y) {
+    if (!rect || rect.width === 0 || rect.height === 0) return false;
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  }
+
+  function findVideoInTree(el, clickX, clickY) {
+    if (el && el.tagName === 'VIDEO') return el;
+    
+    // Find relevant container (the element itself or closest card wrapper)
+    var container = el.closest ? el.closest('.p-card, .reel-card, .review-card, article, [data-framer-name], section') : null;
+    if (!container) container = el;
+    if (isRootContainer(container)) container = el; // Don't scan entire page
+    
+    if (container) {
+      // Find all videos in this container
+      var videos = container.querySelectorAll('video');
+      
+      // 1. Spatial Match: Try to find a video whose bounding box actually contains the click point
+      if (typeof clickX === 'number' && typeof clickY === 'number') {
+        // Reverse order so we match top-most elements first if they overlap
+        for (var i = videos.length - 1; i >= 0; i--) {
+          var rect = videos[i].getBoundingClientRect();
+          if (isPointInside(rect, clickX, clickY)) {
+            return videos[i];
+          }
+        }
+      }
+      
+      // 2. Exact Overlay Match: If no direct spatial match, but we clicked exactly on an overlay that precisely covers a video
+      // Check if the clicked element has exactly the same dimensions as one of the videos
+      if (el) {
+        var elRect = el.getBoundingClientRect();
+        if (elRect.width > 0 && elRect.height > 0) {
+          for (var j = 0; j < videos.length; j++) {
+            var vRect = videos[j].getBoundingClientRect();
+            // If dimensions and position are very similar (within 2px tolerance)
+            if (Math.abs(elRect.width - vRect.width) < 2 &&
+                Math.abs(elRect.height - vRect.height) < 2 &&
+                Math.abs(elRect.top - vRect.top) < 2 &&
+                Math.abs(elRect.left - vRect.left) < 2) {
+              return videos[j];
+            }
+          }
+        }
+      }
+    }
+    
+    // 3. Fallback: Old tree traversal (closest ancestor or direct child)
     var node = el;
-    for (var d = 0; d < maxDepth && node && !isRootContainer(node); d++) {
+    for (var d = 0; d < 12 && node && !isRootContainer(node); d++) {
       if (node.tagName === 'VIDEO') return node;
-      var vid = node.querySelector ? node.querySelector('video') : null;
-      if (vid) return vid;
       node = node.parentElement;
+    }
+    if (el && el.children) {
+      for (var c = 0; c < el.children.length; c++) {
+        if (el.children[c].tagName === 'VIDEO') return el.children[c];
+      }
     }
     return null;
   }
@@ -277,7 +376,14 @@
     if (card && isRootContainer(card)) card = null;
 
     // 2. Locate video, img, and text in component tree
-    var treeVideo = (el.tagName === 'VIDEO') ? el : findVideoInTree(el, 12) || (card ? card.querySelector('video') : null);
+    var treeVideo = (el.tagName === 'VIDEO') ? el : findVideoInTree(el, clickX, clickY);
+    // Fallback: if no video found but card exists, find first video
+    if (!treeVideo && card) {
+      var cardVideos = card.querySelectorAll('video');
+      if (cardVideos.length === 1) {
+        treeVideo = cardVideos[0];
+      }
+    }
     var treeImg   = (el.tagName === 'IMG')   ? el : findImgInTree(el, 10)   || (card ? card.querySelector('img') : null);
 
     var targetText = null;
@@ -312,10 +418,18 @@
     });
 
     // Mark persistent active target markers
-    if (treeVideo) treeVideo.setAttribute('data-ve-active-target', 'video');
+    if (treeVideo) {
+      treeVideo.setAttribute('data-ve-active-target', 'video');
+      var vidId = treeVideo.getAttribute('data-ve-video-id');
+      if (!vidId && window.VideoManager) {
+        window.VideoManager.scanVideos();
+        vidId = treeVideo.getAttribute('data-ve-video-id');
+      }
+      window.lastSelectedVideoId = vidId;
+    }
     if (treeImg) treeImg.setAttribute('data-ve-active-target', 'img');
     if (card) card.setAttribute('data-ve-active-target', 'card');
-    if (target) target.setAttribute('data-ve-active-target', 'target');
+    if (target && target !== treeVideo && target !== treeImg) target.setAttribute('data-ve-active-target', 'target');
 
     // Store references
     window.lastSelectedVideo = treeVideo;
@@ -366,6 +480,7 @@
       linkHref: linkHref,
       tag: target.tagName,
       isVideo: hasVideo,
+      logicalVideoId: window.lastSelectedVideoId,
       rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
     };
     console.log('[VE] ELEMENT_INFO →', info);
@@ -490,9 +605,16 @@
   }
 
   /* ── APPLY MEDIA (Per-frame exact sizing and fitting) ── */
-  function applyMedia(url) {
+  function applyMedia(url, explicitLogicalVideoId) {
     if (!url) return;
+    console.log('[VE] applyMedia called with:', url);
     var cleanUrl = url.trim();
+
+    // Guard: clear any detached (stale) DOM references
+    if (currentTarget && !document.body.contains(currentTarget)) currentTarget = null;
+    if (window.lastSelectedElement && !document.body.contains(window.lastSelectedElement)) window.lastSelectedElement = null;
+    if (window.lastSelectedVideo && !document.body.contains(window.lastSelectedVideo)) window.lastSelectedVideo = null;
+    if (window.lastSelectedImg && !document.body.contains(window.lastSelectedImg)) window.lastSelectedImg = null;
 
     var isVideoUrl = /\.(mp4|webm|mov|m4v|ogv|mkv|avi|blob)/i.test(cleanUrl) || 
                      cleanUrl.startsWith('blob:') ||
@@ -501,7 +623,23 @@
                      (cleanUrl.includes('/media/') && !/\.(png|jpe?g|gif|webp|svg)/i.test(cleanUrl)) ||
                      cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be') || cleanUrl.includes('instagram.com');
 
-    // Multi-stage target resolution
+    // Use VideoManager for robust video replacement
+    var targetVideoId = explicitLogicalVideoId || window.lastSelectedVideoId;
+    if (isVideoUrl && targetVideoId && window.VideoManager) {
+      var result = window.VideoManager.replaceSelected(targetVideoId, cleanUrl);
+      if (result.success) {
+        notifyHistoryState();
+        window.parent.postMessage({ 
+          type: 'REPLACEMENT_SUCCESS', 
+          message: 'Video ' + (result.friendlyName || window.lastSelectedVideoId) + ' replaced successfully. Updated variants: ' + result.variants.join(', ')
+        }, '*');
+      } else {
+        window.parent.postMessage({ type: 'SAVE_ERROR', message: 'Failed to replace video: ' + result.error }, '*');
+      }
+      return;
+    }
+
+    // Multi-stage target resolution (fallback for images/text or if VideoManager fails)
     var t = null;
 
     // Stage 1: Check persistent active target markers in DOM
@@ -709,10 +847,28 @@
       if (styleEditor) styleEditor.remove();
       clone.querySelectorAll('.ve-mute-btn').forEach(function(n){ n.remove(); });
 
+      // Strip editor-injected metadata to keep HTML completely clean
+      clone.querySelectorAll('[data-mute-injected]').forEach(function(n) {
+        n.removeAttribute('data-mute-injected');
+      });
+      clone.querySelectorAll('[data-ve-video-id]').forEach(function(n) {
+        n.removeAttribute('data-ve-video-id');
+      });
+
+      // Block save if any blob: URLs exist (they won't survive page reload)
+      var htmlToSave = clone.innerHTML;
+      if (htmlToSave.indexOf('blob:') !== -1) {
+        window.parent.postMessage({
+          type: 'SAVE_ERROR',
+          message: 'Cannot save: page contains temporary local media URLs (blob:). Please re-upload the media files using Supabase Storage before saving.'
+        }, '*');
+        return;
+      }
+
       var pageName = window.location.pathname.split('/').pop() || 'index.html';
       window.parent.postMessage({
         type: 'SAVE_CONTENT',
-        content: clone.innerHTML,
+        content: htmlToSave,
         page: pageName
       }, '*');
     } catch(e) {
@@ -720,5 +876,5 @@
     }
   }
 
-  console.log('[VE] visual-editor v32 fully initialized — Universal component editing enabled!');
+  console.log('[VE] visual-editor v33 fully initialized — Message listener + video selection fix active!');
 })();

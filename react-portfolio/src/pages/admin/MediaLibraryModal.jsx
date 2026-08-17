@@ -3,65 +3,11 @@ import { supabase } from '../../supabaseClient';
 import { X, Image as ImageIcon, Video, File as FileIcon, Upload, Link as LinkIcon, Sparkles } from 'lucide-react';
 import './Admin.css';
 
-// IndexedDB Helper for persistent local video & image blob storage
-const DB_NAME = 'ScrollzLocalMediaDB';
-const DB_VERSION = 1;
-const STORE_NAME = 'media_files';
-
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'name' });
-      }
-    };
-    request.onsuccess = (e) => resolve(e.target.result);
-    request.onerror = (e) => reject(e.target.error);
-  });
-}
-
-async function saveLocalBlob(name, blob) {
-  try {
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    store.put({ name, blob, created_at: Date.now() });
-    return new Promise((resolve) => {
-      tx.oncomplete = () => resolve(true);
-      tx.onerror = () => resolve(false);
-    });
-  } catch (e) {
-    console.warn('saveLocalBlob failed:', e);
-    return false;
-  }
-}
-
-async function getAllLocalBlobs() {
-  try {
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.getAll();
-    return new Promise((resolve) => {
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => resolve([]);
-    });
-  } catch (e) {
-    console.warn('getAllLocalBlobs failed:', e);
-    return [];
-  }
-}
-
-// Timeout helper to avoid waiting for hanging/failing network requests
-const withTimeout = (promise, ms = 1200) => {
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error('Network timeout')), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-};
+// File validation constants
+const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
+const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+const ALLOWED_TYPES = [...ALLOWED_VIDEO_TYPES, ...ALLOWED_IMAGE_TYPES];
+const MAX_FILE_SIZE = 250 * 1024 * 1024; // 250 MB
 
 export default function MediaLibraryModal({ onClose, onSelect }) {
   const [activeTab, setActiveTab] = useState('link'); // 'link' | 'upload' | 'library'
@@ -69,6 +15,7 @@ export default function MediaLibraryModal({ onClose, onSelect }) {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(''); // status message during upload
 
   useEffect(() => {
     fetchMedia();
@@ -78,19 +25,9 @@ export default function MediaLibraryModal({ onClose, onSelect }) {
     try {
       setLoading(true);
       
-      // 1. Fetch persistent local blobs from IndexedDB
-      const localBlobs = await getAllLocalBlobs();
-      const localFiles = localBlobs.map(b => ({
-        name: b.name,
-        url: URL.createObjectURL(b.blob),
-        isLocal: true,
-        created_at: new Date(b.created_at || Date.now()).toISOString()
-      }));
-
-      // 2. Try fetching remote files from Supabase Storage with 1.2s timeout
       let remoteFiles = [];
       try {
-        const { data, error } = await withTimeout(supabase.storage.from('media').list(''), 1200);
+        const { data, error } = await supabase.storage.from('media').list('');
         if (!error && data) {
           remoteFiles = data
             .filter(f => f.name !== '.emptyFolderPlaceholder')
@@ -105,11 +42,10 @@ export default function MediaLibraryModal({ onClose, onSelect }) {
             });
         }
       } catch (err) {
-        console.warn('Supabase storage fetch skipped/timed out:', err.message);
+        console.warn('Supabase storage fetch failed:', err.message);
       }
 
-      // Combine local blobs first, then remote files
-      const combined = [...localFiles, ...remoteFiles].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      const combined = [...remoteFiles].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       setFiles(combined);
     } catch (err) {
       console.warn('Media fetch error:', err.message);
@@ -133,45 +69,93 @@ export default function MediaLibraryModal({ onClose, onSelect }) {
   const uploadFile = async (event) => {
     try {
       setUploading(true);
-      if (!event.target.files || event.target.files.length === 0) return;
+      setUploadStatus('Checking authentication...');
+      if (!event.target.files || event.target.files.length === 0) {
+        setUploading(false);
+        setUploadStatus('');
+        return;
+      }
 
       const file = event.target.files[0];
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2, 10)}_${Date.now()}.${fileExt}`;
 
-      // Always save to local IndexedDB first so it's 100% available offline/locally
-      await saveLocalBlob(file.name, file);
-      const objectUrl = URL.createObjectURL(file);
-
-      // Try uploading to Supabase Storage in background with 1.2s timeout
-      try {
-        const { data, error: uploadError } = await withTimeout(
-          supabase.storage.from('media').upload(fileName, file, { cacheControl: '3600', upsert: true }),
-          1200
-        );
-        if (!uploadError && data) {
-          const { data: pubData } = supabase.storage.from('media').getPublicUrl(fileName);
-          const publicUrl = `${pubData.publicUrl}?v=${Date.now()}`;
-          onSelect(publicUrl);
-          return;
-        }
-      } catch (stErr) {
-        console.warn('Supabase storage upload skipped/timed out:', stErr.message);
+      // Validate session explicitly before trying to upload
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        alert('Admin session expired. Please log in again to upload media.');
+        setUploading(false);
+        setUploadStatus('');
+        return;
       }
 
-      // Fallback to local Object URL
-      onSelect(objectUrl);
+      // Validate file type
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        alert(`Unsupported file type: ${file.type || 'unknown'}\n\nAllowed types:\n• Video: MP4, WebM, MOV\n• Image: PNG, JPG, WebP, GIF`);
+        setUploading(false);
+        setUploadStatus('');
+        return;
+      }
+
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        alert(`File too large: ${sizeMB} MB\n\nMaximum allowed: 250 MB`);
+        setUploading(false);
+        setUploadStatus('');
+        return;
+      }
+
+      // Generate unique storage key
+      const fileExt = file.name.split('.').pop().toLowerCase();
+      const uniqueId = crypto.randomUUID ? crypto.randomUUID() :
+        Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      
+      const safeOriginalName = file.name.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
+      const fileName = `videos/${uniqueId}-${Date.now()}-${safeOriginalName}.${fileExt}`;
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+
+      setUploadStatus(`Uploading ${sizeMB} MB to storage...`);
+
+      // Upload to Supabase Storage (no artificial timeout)
+      const { data, error: uploadError } = await supabase.storage
+        .from('media')
+        .upload(fileName, file, { cacheControl: '3600', upsert: false });
+
+      if (uploadError) {
+        console.error('Supabase upload error:', uploadError);
+        let errorMsg = uploadError.message;
+        if (errorMsg === 'Failed to fetch') {
+          errorMsg = 'Network or CORS error. This often means the "media" bucket does not exist or the RLS policy is rejecting the upload. Verify that the bucket exists and has an INSERT policy for authenticated users.';
+        } else if (errorMsg.includes('policy')) {
+          errorMsg = 'Upload rejected by Supabase Storage RLS policy. Verify that the bucket allows authenticated INSERTs.';
+        }
+        
+        alert(`Upload failed:\n\n${errorMsg}`);
+        setUploading(false);
+        setUploadStatus('');
+        return;
+      }
+
+      if (!data) {
+        alert('Upload failed: No data returned from storage. Please try again.');
+        setUploading(false);
+        setUploadStatus('');
+        return;
+      }
+
+      setUploadStatus('Upload complete! Generating URL...');
+
+      // Get public URL with cache-busting parameter
+      const { data: pubData } = supabase.storage.from('media').getPublicUrl(fileName);
+      const publicUrl = `${pubData.publicUrl}?v=${Date.now()}`;
+
+      setUploadStatus('');
+      onSelect(publicUrl);
     } catch (err) {
       console.error('Upload error:', err);
-      const file = event.target.files ? event.target.files[0] : null;
-      if (file) {
-        const objectUrl = URL.createObjectURL(file);
-        onSelect(objectUrl);
-      } else {
-        alert('Error uploading video file: ' + err.message);
-      }
+      alert(`Upload failed: ${err.message}\n\nPlease try again.`);
     } finally {
       setUploading(false);
+      setUploadStatus('');
       if (event.target) event.target.value = '';
     }
   };
@@ -298,19 +282,29 @@ export default function MediaLibraryModal({ onClose, onSelect }) {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', border: '2px dashed #333', borderRadius: '12px', background: '#0a0a0e' }}>
               <Video size={48} color="#7932ec" style={{ marginBottom: '16px' }} />
               <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', color: '#fff' }}>Upload Video or Image File</h4>
-              <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: '#888', textAlign: 'center' }}>
+              <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#888', textAlign: 'center' }}>
                 Select an MP4, WebM, MOV video or PNG, JPG, WebP image file from your computer.
+              </p>
+              <p style={{ margin: '0 0 20px 0', fontSize: '11px', color: '#666', textAlign: 'center' }}>
+                Maximum file size: 250 MB
               </p>
               
               <label style={{ 
-                background: 'linear-gradient(135deg, #7932ec, #23005c)', color: '#fff', padding: '10px 24px', borderRadius: '8px', 
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 700,
-                boxShadow: '0 0 15px rgba(121,50,236,0.4)', opacity: uploading ? 0.7 : 1
+                background: uploading ? '#333' : 'linear-gradient(135deg, #7932ec, #23005c)', color: '#fff', padding: '10px 24px', borderRadius: '8px', 
+                cursor: uploading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 700,
+                boxShadow: uploading ? 'none' : '0 0 15px rgba(121,50,236,0.4)', opacity: uploading ? 0.7 : 1
               }}>
                 <Upload size={16} />
-                {uploading ? 'Uploading & Processing...' : 'Choose File from Computer'}
-                <input type="file" style={{ display: 'none' }} onChange={uploadFile} disabled={uploading} accept="video/*,image/*" />
+                {uploading ? 'Uploading...' : 'Choose File from Computer'}
+                <input type="file" style={{ display: 'none' }} onChange={uploadFile} disabled={uploading} accept="video/mp4,video/webm,video/quicktime,image/png,image/jpeg,image/webp,image/gif" />
               </label>
+
+              {uploadStatus && (
+                <div style={{ marginTop: '16px', padding: '10px 20px', background: 'rgba(121,50,236,0.15)', border: '1px solid rgba(121,50,236,0.3)', borderRadius: '8px', fontSize: '13px', color: '#c084fc', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '14px', height: '14px', border: '2px solid #c084fc', borderTop: '2px solid transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                  {uploadStatus}
+                </div>
+              )}
             </div>
           )}
 

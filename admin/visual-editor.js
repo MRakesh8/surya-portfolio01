@@ -92,7 +92,7 @@
    * ══════════════════════════════════════════════════ */
   if (!isAdmin) return;
 
-  console.log('[VE] visual-editor v32 starting…');
+  console.log('[VE] visual-editor v33 starting…');
 
   var currentTarget = null;
   window.lastSelectedElement = null;
@@ -134,6 +134,23 @@
       redoStack.push(current);
       var prev = undoStack[undoStack.length - 1];
       document.body.innerHTML = prev;
+      // Clear all stale DOM references after innerHTML replacement
+      currentTarget = null;
+      window.lastSelectedElement = null;
+      window.lastSelectedVideo = null;
+      window.lastSelectedVideoId = null;
+      window.lastSelectedImg = null;
+      window.lastSelectedText = null;
+      currentlyPausedVideo = null;
+      if (window.VideoManager) window.VideoManager.scanVideos();
+      // Re-inject admin styles and mute controls
+      if (!document.getElementById('ve-styles-editor')) {
+        var s = document.createElement('style');
+        s.id = 've-styles-editor';
+        s.innerHTML = 'body { cursor: crosshair !important; } [data-framer-component-type], .framer-text, .framer-text * { pointer-events: auto !important; }';
+        document.head.appendChild(s);
+      }
+      injectMuteControls();
       notifyHistoryState();
       window.parent.postMessage({ type: 'ELEMENT_INFO', found: false }, '*');
     }
@@ -146,6 +163,23 @@
       var next = redoStack.pop();
       undoStack.push(next);
       document.body.innerHTML = next;
+      // Clear all stale DOM references after innerHTML replacement
+      currentTarget = null;
+      window.lastSelectedElement = null;
+      window.lastSelectedVideo = null;
+      window.lastSelectedVideoId = null;
+      window.lastSelectedImg = null;
+      window.lastSelectedText = null;
+      currentlyPausedVideo = null;
+      if (window.VideoManager) window.VideoManager.scanVideos();
+      // Re-inject admin styles and mute controls
+      if (!document.getElementById('ve-styles-editor')) {
+        var s = document.createElement('style');
+        s.id = 've-styles-editor';
+        s.innerHTML = 'body { cursor: crosshair !important; } [data-framer-component-type], .framer-text, .framer-text * { pointer-events: auto !important; }';
+        document.head.appendChild(s);
+      }
+      injectMuteControls();
       notifyHistoryState();
       window.parent.postMessage({ type: 'ELEMENT_INFO', found: false }, '*');
     }
@@ -191,6 +225,21 @@
     console.error('[VE] Failed to send IFRAME_READY', e);
   }
 
+  /* ── Receive messages from parent admin panel ── */
+  window.addEventListener('message', function(event) {
+    if (!event.data || typeof event.data !== 'object') return;
+    var msg = event.data;
+    switch (msg.type) {
+      case 'MEDIA_SELECTED':  applyMedia(msg.url); break;
+      case 'EDIT_ACTION':     handleEditAction(msg.action, msg.value); break;
+      case 'UNDO':            doUndo(); break;
+      case 'REDO':            doRedo(); break;
+      case 'REQUEST_SAVE':    doSave(); break;
+      case 'DESELECT':        clearSelection(); resumePausedVideo(); break;
+      case 'RESET_DEFAULT':   doResetDefault(); break;
+    }
+  });
+
   /* ── Capture double-click ── */
   window.addEventListener('dblclick', function(e) {
     e.preventDefault();
@@ -232,11 +281,31 @@
   }
 
   function findVideoInTree(el, maxDepth) {
+    // Priority 1: The element itself
+    if (el && el.tagName === 'VIDEO') return el;
+    // Priority 2: Walk up ancestors looking for <video> tag directly
     var node = el;
     for (var d = 0; d < maxDepth && node && !isRootContainer(node); d++) {
       if (node.tagName === 'VIDEO') return node;
-      var vid = node.querySelector ? node.querySelector('video') : null;
-      if (vid) return vid;
+      node = node.parentElement;
+    }
+    // Priority 3: Check immediate children of the clicked element (not deep querySelector)
+    if (el && el.children) {
+      for (var c = 0; c < el.children.length; c++) {
+        if (el.children[c].tagName === 'VIDEO') return el.children[c];
+      }
+    }
+    // Priority 4: Walk up from el looking for the closest ancestor that directly contains a video child
+    node = el;
+    for (var d2 = 0; d2 < maxDepth && node && !isRootContainer(node); d2++) {
+      if (node.children) {
+        for (var k = 0; k < node.children.length; k++) {
+          if (node.children[k].tagName === 'VIDEO') return node.children[k];
+        }
+      }
+      // Also check the next level down in case there's a wrapper div
+      var inner = node.querySelector ? node.querySelector(':scope > * > video') : null;
+      if (inner) return inner;
       node = node.parentElement;
     }
     return null;
@@ -277,7 +346,25 @@
     if (card && isRootContainer(card)) card = null;
 
     // 2. Locate video, img, and text in component tree
-    var treeVideo = (el.tagName === 'VIDEO') ? el : findVideoInTree(el, 12) || (card ? card.querySelector('video') : null);
+    var treeVideo = (el.tagName === 'VIDEO') ? el : findVideoInTree(el, 12);
+    // Fallback: if no video found in tree walk but card exists, find the closest video to the click point
+    if (!treeVideo && card) {
+      var cardVideos = card.querySelectorAll('video');
+      if (cardVideos.length === 1) {
+        treeVideo = cardVideos[0];
+      } else if (cardVideos.length > 1) {
+        // Multiple videos in card: prefer the one whose container is closest to clicked element
+        var bestVid = null;
+        var bestDist = Infinity;
+        for (var vi = 0; vi < cardVideos.length; vi++) {
+          var vRect = cardVideos[vi].getBoundingClientRect();
+          var elRect = el.getBoundingClientRect();
+          var dist = Math.abs(vRect.top - elRect.top) + Math.abs(vRect.left - elRect.left);
+          if (dist < bestDist) { bestDist = dist; bestVid = cardVideos[vi]; }
+        }
+        treeVideo = bestVid;
+      }
+    }
     var treeImg   = (el.tagName === 'IMG')   ? el : findImgInTree(el, 10)   || (card ? card.querySelector('img') : null);
 
     var targetText = null;
@@ -312,10 +399,18 @@
     });
 
     // Mark persistent active target markers
-    if (treeVideo) treeVideo.setAttribute('data-ve-active-target', 'video');
+    if (treeVideo) {
+      treeVideo.setAttribute('data-ve-active-target', 'video');
+      var vidId = treeVideo.getAttribute('data-ve-video-id');
+      if (!vidId && window.VideoManager) {
+        window.VideoManager.scanVideos();
+        vidId = treeVideo.getAttribute('data-ve-video-id');
+      }
+      window.lastSelectedVideoId = vidId;
+    }
     if (treeImg) treeImg.setAttribute('data-ve-active-target', 'img');
     if (card) card.setAttribute('data-ve-active-target', 'card');
-    if (target) target.setAttribute('data-ve-active-target', 'target');
+    if (target && target !== treeVideo && target !== treeImg) target.setAttribute('data-ve-active-target', 'target');
 
     // Store references
     window.lastSelectedVideo = treeVideo;
@@ -492,7 +587,14 @@
   /* ── APPLY MEDIA (Per-frame exact sizing and fitting) ── */
   function applyMedia(url) {
     if (!url) return;
+    console.log('[VE] applyMedia called with:', url);
     var cleanUrl = url.trim();
+
+    // Guard: clear any detached (stale) DOM references
+    if (currentTarget && !document.body.contains(currentTarget)) currentTarget = null;
+    if (window.lastSelectedElement && !document.body.contains(window.lastSelectedElement)) window.lastSelectedElement = null;
+    if (window.lastSelectedVideo && !document.body.contains(window.lastSelectedVideo)) window.lastSelectedVideo = null;
+    if (window.lastSelectedImg && !document.body.contains(window.lastSelectedImg)) window.lastSelectedImg = null;
 
     var isVideoUrl = /\.(mp4|webm|mov|m4v|ogv|mkv|avi|blob)/i.test(cleanUrl) || 
                      cleanUrl.startsWith('blob:') ||
@@ -501,7 +603,22 @@
                      (cleanUrl.includes('/media/') && !/\.(png|jpe?g|gif|webp|svg)/i.test(cleanUrl)) ||
                      cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be') || cleanUrl.includes('instagram.com');
 
-    // Multi-stage target resolution
+    // Use VideoManager for robust video replacement
+    if (isVideoUrl && window.lastSelectedVideoId && window.VideoManager) {
+      var result = window.VideoManager.replaceSelected(window.lastSelectedVideoId, cleanUrl);
+      if (result.success) {
+        notifyHistoryState();
+        window.parent.postMessage({ 
+          type: 'REPLACEMENT_SUCCESS', 
+          message: 'Video ' + (result.friendlyName || window.lastSelectedVideoId) + ' replaced successfully. Updated variants: ' + result.variants.join(', ')
+        }, '*');
+      } else {
+        window.parent.postMessage({ type: 'SAVE_ERROR', message: 'Failed to replace video: ' + result.error }, '*');
+      }
+      return;
+    }
+
+    // Multi-stage target resolution (fallback for images/text or if VideoManager fails)
     var t = null;
 
     // Stage 1: Check persistent active target markers in DOM
@@ -709,10 +826,25 @@
       if (styleEditor) styleEditor.remove();
       clone.querySelectorAll('.ve-mute-btn').forEach(function(n){ n.remove(); });
 
+      // Strip editor-injected data-mute-injected attribute so mute buttons re-inject on live site
+      clone.querySelectorAll('[data-mute-injected]').forEach(function(n) {
+        n.removeAttribute('data-mute-injected');
+      });
+
+      // Block save if any blob: URLs exist (they won't survive page reload)
+      var htmlToSave = clone.innerHTML;
+      if (htmlToSave.indexOf('blob:') !== -1) {
+        window.parent.postMessage({
+          type: 'SAVE_ERROR',
+          message: 'Cannot save: page contains temporary local media URLs (blob:). Please re-upload the media files using Supabase Storage before saving.'
+        }, '*');
+        return;
+      }
+
       var pageName = window.location.pathname.split('/').pop() || 'index.html';
       window.parent.postMessage({
         type: 'SAVE_CONTENT',
-        content: clone.innerHTML,
+        content: htmlToSave,
         page: pageName
       }, '*');
     } catch(e) {
@@ -720,5 +852,5 @@
     }
   }
 
-  console.log('[VE] visual-editor v32 fully initialized — Universal component editing enabled!');
+  console.log('[VE] visual-editor v33 fully initialized — Message listener + video selection fix active!');
 })();

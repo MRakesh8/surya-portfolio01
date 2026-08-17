@@ -161,10 +161,11 @@ export default function DashboardHome() {
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveState, setSaveState] = useState('saved'); // 'saved' | 'unsaved' | 'saving'
+  const [toastMessage, setToastMessage] = useState('');
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [deviceMode, setDeviceMode] = useState('desktop'); // 'desktop' | 'tablet' | 'mobile'
-  const [menu, setMenu] = useState({ visible:false, x:0, y:0, isMedia:false, hasVideo:false, hasImage:false, hasText:true, tag:'' });
+  const [menu, setMenu] = useState({ visible:false, x:0, y:0, isMedia:false, hasVideo:false, hasImage:false, hasText:true, tag:'', logicalVideoId:null });
   const [inputModal, setInputModal] = useState(null);
   const [status, setStatus] = useState('waiting'); // 'waiting' | 'ready' | 'clicked'
 
@@ -246,7 +247,8 @@ export default function DashboardHome() {
           hasText: msg.hasText,
           tag: msg.tag,
           isLink: msg.isLink,
-          linkHref: msg.linkHref
+          linkHref: msg.linkHref,
+          logicalVideoId: msg.logicalVideoId
         });
         setStatus('ready');
       }
@@ -256,6 +258,17 @@ export default function DashboardHome() {
       }
 
       if (msg.type === 'REQUEST_MEDIA') setShowMediaModal(true);
+
+      if (msg.type === 'SAVE_ERROR') {
+        setSaving(false);
+        setSaveState('unsaved');
+        alert('❌ Save blocked: ' + (msg.message || 'Unknown error'));
+      }
+
+      if (msg.type === 'REPLACEMENT_SUCCESS') {
+        setToastMessage('✓ ' + msg.message);
+        setTimeout(() => setToastMessage(''), 5000);
+      }
 
       if (msg.type === 'SAVE_CONTENT') {
         saveContentToDatabase(msg.content, msg.page);
@@ -302,10 +315,10 @@ export default function DashboardHome() {
   }, [inputModal, postToIframe]);
 
   const handleMediaSelect = useCallback((url) => {
-    postToIframe({ type:'MEDIA_SELECTED', url });
+    postToIframe({ type:'MEDIA_SELECTED', logicalVideoId: menu.logicalVideoId, url });
     setShowMediaModal(false);
     setSaveState('unsaved');
-  }, [postToIframe]);
+  }, [postToIframe, menu.logicalVideoId]);
 
   const requestUndo = () => postToIframe({ type: 'UNDO' });
   const requestRedo = () => postToIframe({ type: 'REDO' });
@@ -451,6 +464,13 @@ export default function DashboardHome() {
       <div style={{flex:1,display:'flex',justifyContent:'center',alignItems:'stretch',background:'#0a0a0e',borderRadius:'12px',overflow:'hidden',padding:'12px'}}>
         <div ref={containerRef} style={{width:containerWidth,height:'100%',position:'relative',
           border:'1px solid rgba(255,255,255,0.12)',borderRadius:'12px',overflow:'hidden',background:'#000',transition:'width 0.3s cubic-bezier(0.16,1,0.3,1)'}}>
+
+          {/* Success Toast */}
+          {toastMessage && (
+            <div style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', background: '#22c55e', color: 'white', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+              {toastMessage}
+            </div>
+          )}
 
           <iframe ref={iframeRef}
             src={iframeSrc}

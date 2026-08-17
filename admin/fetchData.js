@@ -104,7 +104,9 @@ async function loadCMSContent() {
 
     if (data && data.length > 0 && data[0][columnName]) {
       const savedHTML = data[0][columnName];
-      if (savedHTML.includes('<section') || savedHTML.includes('<div')) {
+
+      // SAFETY GUARD: Only proceed if savedHTML is valid HTML content with tags and significant length
+      if (typeof savedHTML === 'string' && savedHTML.length > 200 && (savedHTML.includes('<section') || savedHTML.includes('<div') || savedHTML.includes('<nav') || savedHTML.includes('<main'))) {
         const parser = new DOMParser();
         const savedDoc = parser.parseFromString(savedHTML, 'text/html');
 
@@ -113,8 +115,15 @@ async function loadCMSContent() {
 
         if (liveMain && savedMain) {
           patchDOM(liveMain, savedMain);
-        } else if (savedDoc.body && document.body) {
-          patchDOM(document.body, savedDoc.body);
+        } else {
+          // If no specific main container, patch matching elements safely without destroying root body
+          const liveRoot = document.querySelector('[data-framer-root]') || document.querySelector('.site-wrapper');
+          const savedRoot = savedDoc.querySelector('[data-framer-root]') || savedDoc.querySelector('.site-wrapper');
+          if (liveRoot && savedRoot) {
+            patchDOM(liveRoot, savedRoot);
+          } else if (savedDoc.body && document.body) {
+            patchDOM(document.body, savedDoc.body);
+          }
         }
       }
     }

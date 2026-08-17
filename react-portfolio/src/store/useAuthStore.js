@@ -58,32 +58,24 @@ const useAuthStore = create((set, get) => ({
   },
 
   signIn: async (email, password) => {
-    const cleanEmail = (email || 'rakesh837m@gmail.com').trim();
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: password || 'hellosurya@4321',
-      });
-      if (error) throw error;
-      if (data?.user) {
-        try { localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data.user)); } catch(e){}
-        set({ user: data.user, loading: false });
-        return data;
-      }
-    } catch (err) {
-      console.warn('[Auth] Supabase auth notice:', err.message || err);
+    if (!email || !email.trim()) {
+      throw new Error('Email is required.');
     }
-
-    // Always succeed cleanly for admin login without showing any error
-    const authUser = {
-      id: 'admin-rakesh-' + Date.now(),
+    if (!password) {
+      throw new Error('Password is required.');
+    }
+    const cleanEmail = email.trim();
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: cleanEmail,
-      role: 'authenticated'
-    };
-
-    try { localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authUser)); } catch(e){}
-    set({ user: authUser, loading: false });
-    return { user: authUser };
+      password: password,
+    });
+    if (error) throw error;
+    if (data?.user) {
+      try { localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data.user)); } catch(e){}
+      set({ user: data.user, loading: false });
+      return data;
+    }
+    throw new Error('Authentication failed. Please check your credentials.');
   },
 
   signOut: async () => {
