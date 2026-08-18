@@ -3,6 +3,6 @@
     "build": "cd react-portfolio && npm install && npm run build"
   },
   "dependencies": {
-    "playwright": "^1.61.1"
+    "playwright": "^1.62.1"
   }
 }

@@ -230,7 +230,7 @@
     if (!event.data || typeof event.data !== 'object') return;
     var msg = event.data;
     switch (msg.type) {
-      case 'MEDIA_SELECTED':  applyMedia(msg.url); break;
+      case 'MEDIA_SELECTED':  applyMedia(msg.url, msg.logicalVideoId); break;
       case 'EDIT_ACTION':     handleEditAction(msg.action, msg.value); break;
       case 'UNDO':            doUndo(); break;
       case 'REDO':            doRedo(); break;
@@ -280,33 +280,65 @@
     return false;
   }
 
-  function findVideoInTree(el, maxDepth) {
-    // Priority 1: The element itself
+  function isPointInside(rect, x, y) {
+    if (!rect || rect.width === 0 || rect.height === 0) return false;
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  }
+
+  function findVideoInTree(el, clickX, clickY) {
     if (el && el.tagName === 'VIDEO') return el;
-    // Priority 2: Walk up ancestors looking for <video> tag directly
-    var node = el;
-    for (var d = 0; d < maxDepth && node && !isRootContainer(node); d++) {
-      if (node.tagName === 'VIDEO') return node;
-      node = node.parentElement;
+    
+    // 1. Check all elements under cursor via DOM elementsFromPoint (handles z-index and overlays naturally)
+    if (typeof clickX === 'number' && typeof clickY === 'number' && document.elementsFromPoint) {
+      try {
+        var elements = document.elementsFromPoint(clickX, clickY);
+        for (var i = 0; i < elements.length; i++) {
+          if (elements[i].tagName === 'VIDEO') return elements[i];
+        }
+      } catch(e) {}
     }
-    // Priority 3: Check immediate children of the clicked element (not deep querySelector)
+    
+    // 2. Traverse upwards to catch sibling videos (overlays blocking pointer events, custom wrappers, etc.)
+    var node = el;
+    var depth = 0;
+    while (node && !isRootContainer(node) && depth < 20) {
+      if (node.tagName === 'VIDEO') return node;
+      
+      var nodeVideos = node.querySelectorAll ? node.querySelectorAll('video') : [];
+      for (var v = 0; v < nodeVideos.length; v++) {
+        var vid = nodeVideos[v];
+        
+        // Spatial match
+        if (typeof clickX === 'number' && typeof clickY === 'number') {
+          var rect = vid.getBoundingClientRect();
+          if (isPointInside(rect, clickX, clickY)) {
+            return vid;
+          }
+        }
+        
+        // Exact overlay match fallback
+        if (el) {
+          var elRect = el.getBoundingClientRect();
+          var vRect = vid.getBoundingClientRect();
+          if (elRect.width > 0 && elRect.height > 0) {
+            if (Math.abs(elRect.width - vRect.width) < 2 &&
+                Math.abs(elRect.height - vRect.height) < 2 &&
+                Math.abs(elRect.top - vRect.top) < 2 &&
+                Math.abs(elRect.left - vRect.left) < 2) {
+              return vid;
+            }
+          }
+        }
+      }
+      node = node.parentElement;
+      depth++;
+    }
+    
+    // 3. Fallback: child check
     if (el && el.children) {
       for (var c = 0; c < el.children.length; c++) {
         if (el.children[c].tagName === 'VIDEO') return el.children[c];
       }
-    }
-    // Priority 4: Walk up from el looking for the closest ancestor that directly contains a video child
-    node = el;
-    for (var d2 = 0; d2 < maxDepth && node && !isRootContainer(node); d2++) {
-      if (node.children) {
-        for (var k = 0; k < node.children.length; k++) {
-          if (node.children[k].tagName === 'VIDEO') return node.children[k];
-        }
-      }
-      // Also check the next level down in case there's a wrapper div
-      var inner = node.querySelector ? node.querySelector(':scope > * > video') : null;
-      if (inner) return inner;
-      node = node.parentElement;
     }
     return null;
   }
@@ -346,23 +378,12 @@
     if (card && isRootContainer(card)) card = null;
 
     // 2. Locate video, img, and text in component tree
-    var treeVideo = (el.tagName === 'VIDEO') ? el : findVideoInTree(el, 12);
-    // Fallback: if no video found in tree walk but card exists, find the closest video to the click point
+    var treeVideo = (el.tagName === 'VIDEO') ? el : findVideoInTree(el, clickX, clickY);
+    // Fallback: if no video found but card exists, find first video
     if (!treeVideo && card) {
       var cardVideos = card.querySelectorAll('video');
       if (cardVideos.length === 1) {
         treeVideo = cardVideos[0];
-      } else if (cardVideos.length > 1) {
-        // Multiple videos in card: prefer the one whose container is closest to clicked element
-        var bestVid = null;
-        var bestDist = Infinity;
-        for (var vi = 0; vi < cardVideos.length; vi++) {
-          var vRect = cardVideos[vi].getBoundingClientRect();
-          var elRect = el.getBoundingClientRect();
-          var dist = Math.abs(vRect.top - elRect.top) + Math.abs(vRect.left - elRect.left);
-          if (dist < bestDist) { bestDist = dist; bestVid = cardVideos[vi]; }
-        }
-        treeVideo = bestVid;
       }
     }
     var treeImg   = (el.tagName === 'IMG')   ? el : findImgInTree(el, 10)   || (card ? card.querySelector('img') : null);
@@ -461,6 +482,7 @@
       linkHref: linkHref,
       tag: target.tagName,
       isVideo: hasVideo,
+      logicalVideoId: window.lastSelectedVideoId,
       rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
     };
     console.log('[VE] ELEMENT_INFO →', info);
@@ -585,7 +607,7 @@
   }
 
   /* ── APPLY MEDIA (Per-frame exact sizing and fitting) ── */
-  function applyMedia(url) {
+  function applyMedia(url, explicitLogicalVideoId) {
     if (!url) return;
     console.log('[VE] applyMedia called with:', url);
     var cleanUrl = url.trim();
@@ -604,8 +626,9 @@
                      cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be') || cleanUrl.includes('instagram.com');
 
     // Use VideoManager for robust video replacement
-    if (isVideoUrl && window.lastSelectedVideoId && window.VideoManager) {
-      var result = window.VideoManager.replaceSelected(window.lastSelectedVideoId, cleanUrl);
+    var targetVideoId = explicitLogicalVideoId || window.lastSelectedVideoId;
+    if (isVideoUrl && targetVideoId && window.VideoManager) {
+      var result = window.VideoManager.replaceSelected(targetVideoId, cleanUrl);
       if (result.success) {
         notifyHistoryState();
         window.parent.postMessage({ 
@@ -826,9 +849,12 @@
       if (styleEditor) styleEditor.remove();
       clone.querySelectorAll('.ve-mute-btn').forEach(function(n){ n.remove(); });
 
-      // Strip editor-injected data-mute-injected attribute so mute buttons re-inject on live site
+      // Strip editor-injected metadata to keep HTML completely clean
       clone.querySelectorAll('[data-mute-injected]').forEach(function(n) {
         n.removeAttribute('data-mute-injected');
+      });
+      clone.querySelectorAll('[data-ve-video-id]').forEach(function(n) {
+        n.removeAttribute('data-ve-video-id');
       });
 
       // Block save if any blob: URLs exist (they won't survive page reload)

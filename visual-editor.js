@@ -288,51 +288,53 @@
   function findVideoInTree(el, clickX, clickY) {
     if (el && el.tagName === 'VIDEO') return el;
     
-    // Find relevant container (the element itself or closest card wrapper)
-    var container = el.closest ? el.closest('.p-card, .reel-card, .review-card, article, [data-framer-name], section') : null;
-    if (!container) container = el;
-    if (isRootContainer(container)) container = el; // Don't scan entire page
+    // 1. Check all elements under cursor via DOM elementsFromPoint (handles z-index and overlays naturally)
+    if (typeof clickX === 'number' && typeof clickY === 'number' && document.elementsFromPoint) {
+      try {
+        var elements = document.elementsFromPoint(clickX, clickY);
+        for (var i = 0; i < elements.length; i++) {
+          if (elements[i].tagName === 'VIDEO') return elements[i];
+        }
+      } catch(e) {}
+    }
     
-    if (container) {
-      // Find all videos in this container
-      var videos = container.querySelectorAll('video');
+    // 2. Traverse upwards to catch sibling videos (overlays blocking pointer events, custom wrappers, etc.)
+    var node = el;
+    var depth = 0;
+    while (node && !isRootContainer(node) && depth < 20) {
+      if (node.tagName === 'VIDEO') return node;
       
-      // 1. Spatial Match: Try to find a video whose bounding box actually contains the click point
-      if (typeof clickX === 'number' && typeof clickY === 'number') {
-        // Reverse order so we match top-most elements first if they overlap
-        for (var i = videos.length - 1; i >= 0; i--) {
-          var rect = videos[i].getBoundingClientRect();
+      var nodeVideos = node.querySelectorAll ? node.querySelectorAll('video') : [];
+      for (var v = 0; v < nodeVideos.length; v++) {
+        var vid = nodeVideos[v];
+        
+        // Spatial match
+        if (typeof clickX === 'number' && typeof clickY === 'number') {
+          var rect = vid.getBoundingClientRect();
           if (isPointInside(rect, clickX, clickY)) {
-            return videos[i];
+            return vid;
           }
         }
-      }
-      
-      // 2. Exact Overlay Match: If no direct spatial match, but we clicked exactly on an overlay that precisely covers a video
-      // Check if the clicked element has exactly the same dimensions as one of the videos
-      if (el) {
-        var elRect = el.getBoundingClientRect();
-        if (elRect.width > 0 && elRect.height > 0) {
-          for (var j = 0; j < videos.length; j++) {
-            var vRect = videos[j].getBoundingClientRect();
-            // If dimensions and position are very similar (within 2px tolerance)
+        
+        // Exact overlay match fallback
+        if (el) {
+          var elRect = el.getBoundingClientRect();
+          var vRect = vid.getBoundingClientRect();
+          if (elRect.width > 0 && elRect.height > 0) {
             if (Math.abs(elRect.width - vRect.width) < 2 &&
                 Math.abs(elRect.height - vRect.height) < 2 &&
                 Math.abs(elRect.top - vRect.top) < 2 &&
                 Math.abs(elRect.left - vRect.left) < 2) {
-              return videos[j];
+              return vid;
             }
           }
         }
       }
+      node = node.parentElement;
+      depth++;
     }
     
-    // 3. Fallback: Old tree traversal (closest ancestor or direct child)
-    var node = el;
-    for (var d = 0; d < 12 && node && !isRootContainer(node); d++) {
-      if (node.tagName === 'VIDEO') return node;
-      node = node.parentElement;
-    }
+    // 3. Fallback: child check
     if (el && el.children) {
       for (var c = 0; c < el.children.length; c++) {
         if (el.children[c].tagName === 'VIDEO') return el.children[c];
