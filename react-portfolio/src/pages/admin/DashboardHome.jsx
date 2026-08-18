@@ -335,7 +335,7 @@ export default function DashboardHome() {
       setSaving(true);
       setSaveState('saving');
       const { data:{session}, error:sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) throw new Error('Session expired.');
+      if (sessionError || !session) throw new Error('Session expired. Please log in again.');
       const normalizedPageName = (pageName || '').replace(/^\/+/, '').replace(/\.html$/, '');
       const col = normalizedPageName === 'projects' ? 'seo_keywords' : 'site_description';
       const { data:existing, error:selErr } = await supabase.from('site_settings').select('id').limit(1);
@@ -344,17 +344,35 @@ export default function DashboardHome() {
         const { error:upErr, count } = await supabase.from('site_settings')
           .update({[col]:htmlContent},{count:'exact'}).eq('id',existing[0].id);
         if (upErr) throw upErr;
-        if (count === 0) throw new Error('0 rows updated.');
+        if (count === 0) throw new Error('0 rows updated — check DB permissions.');
       } else {
         const { error:insErr } = await supabase.from('site_settings').insert([{[col]:htmlContent}]);
         if (insErr) throw insErr;
       }
+
+      // ── Broadcast to all open live-site tabs on the same browser ──
+      // This gives INSTANT sync without waiting for Supabase Realtime.
+      try {
+        const syncChannel = new BroadcastChannel('scrollz-cms-sync');
+        syncChannel.postMessage({
+          type: 'CONTENT_UPDATED',
+          page: normalizedPageName,
+          timestamp: Date.now(),
+        });
+        syncChannel.close();
+        console.log('[Admin] 📡 Broadcast sent to live site tabs.');
+      } catch (broadcastErr) {
+        console.warn('[Admin] BroadcastChannel not available:', broadcastErr);
+      }
+
       setSaveState('saved');
-      alert('✅ Saved & Published Live!');
+      setToastMessage('✅ Saved & Published Live! The public site has been updated.');
+      setTimeout(() => setToastMessage(''), 5000);
     } catch(err) {
       console.error('Save failed:', err);
       setSaveState('unsaved');
-      alert('❌ ' + err.message);
+      setToastMessage('❌ Save failed: ' + err.message);
+      setTimeout(() => setToastMessage(''), 6000);
     } finally { setSaving(false); }
   };
 
@@ -465,9 +483,17 @@ export default function DashboardHome() {
         <div ref={containerRef} style={{width:containerWidth,height:'100%',position:'relative',
           border:'1px solid rgba(255,255,255,0.12)',borderRadius:'12px',overflow:'hidden',background:'#000',transition:'width 0.3s cubic-bezier(0.16,1,0.3,1)'}}>
 
-          {/* Success Toast */}
+          {/* Toast — shown above iframe, color depends on success/error */}
           {toastMessage && (
-            <div style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', background: '#22c55e', color: 'white', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+            <div style={{
+              position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
+              background: toastMessage.startsWith('❌') ? '#ef4444' : '#22c55e',
+              color: 'white', padding: '12px 24px', borderRadius: '10px',
+              fontWeight: 600, zIndex: 99999,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+              whiteSpace: 'nowrap', fontSize: '14px',
+              animation: 'fadeInDown 0.3s ease',
+            }}>
               {toastMessage}
             </div>
           )}

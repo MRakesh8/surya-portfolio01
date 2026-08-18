@@ -1,4 +1,5 @@
 // This script fetches data from your Supabase CMS and updates the live website in REAL-TIME.
+// It listens for BOTH Supabase Realtime DB changes AND BroadcastChannel messages from the Admin.
 
 const SUPABASE_URL = 'https://sdvcpkexawlihomyhkkp.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkdmNwa2V4YXdsaWhvbXloa2twIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMzk2ODAsImV4cCI6MjA5OTYxNTY4MH0.g02cUmn305wiUZ4aNfKr43SaeveI1FcmPwTmBia5dh4';
@@ -7,6 +8,16 @@ const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const urlParams = new URLSearchParams(window.location.search);
 const isAdmin = urlParams.get('admin') === 'true';
+
+/**
+ * Determines which Supabase column to read for the current page.
+ * Handles: '/', '/index.html', '/projects.html', '/projects'
+ */
+function getColumnForCurrentPage() {
+  const pathname = window.location.pathname.replace(/\/+$/, '') || '/';
+  const isProjectsPage = pathname.endsWith('/projects') || pathname.endsWith('/projects.html');
+  return isProjectsPage ? 'seo_keywords' : 'site_description';
+}
 
 /**
  * Recursively diffs and patches the live DOM with the saved HTML.
@@ -91,9 +102,7 @@ function patchDOM(liveNode, savedNode) {
 
 async function loadCMSContent() {
   try {
-    const pathname = window.location.pathname.replace(/\/+$/, '');
-    const isProjectsPage = pathname.endsWith('/projects') || pathname.endsWith('/projects.html');
-    const columnName = isProjectsPage ? 'seo_keywords' : 'site_description';
+    const columnName = getColumnForCurrentPage();
 
     const { data, error } = await client
       .from('site_settings')
@@ -106,45 +115,94 @@ async function loadCMSContent() {
       const savedHTML = data[0][columnName];
 
       // SAFETY GUARD: Only proceed if savedHTML is valid HTML content with tags and significant length
-      if (typeof savedHTML === 'string' && savedHTML.length > 200 && (savedHTML.includes('<section') || savedHTML.includes('<div') || savedHTML.includes('<nav') || savedHTML.includes('<main'))) {
+      if (
+        typeof savedHTML === 'string' &&
+        savedHTML.length > 200 &&
+        (savedHTML.includes('<section') || savedHTML.includes('<div') || savedHTML.includes('<nav') || savedHTML.includes('<main'))
+      ) {
         const parser = new DOMParser();
         const savedDoc = parser.parseFromString(savedHTML, 'text/html');
 
+        // Try to target a specific root element for a precise patch
         const liveMain = document.getElementById('main');
         const savedMain = savedDoc.getElementById('main');
 
         if (liveMain && savedMain) {
           patchDOM(liveMain, savedMain);
         } else {
-          // If no specific main container, patch matching elements safely without destroying root body
-          const liveRoot = document.querySelector('[data-framer-root]') || document.querySelector('.site-wrapper');
-          const savedRoot = savedDoc.querySelector('[data-framer-root]') || savedDoc.querySelector('.site-wrapper');
+          // Try Framer root or site-wrapper
+          const liveRoot =
+            document.querySelector('[data-framer-root]') ||
+            document.querySelector('.site-wrapper') ||
+            document.querySelector('main');
+          const savedRoot =
+            savedDoc.querySelector('[data-framer-root]') ||
+            savedDoc.querySelector('.site-wrapper') ||
+            savedDoc.querySelector('main');
+
           if (liveRoot && savedRoot) {
             patchDOM(liveRoot, savedRoot);
-          } else if (savedDoc.body && document.body) {
+          } else {
+            // Full body patch as final fallback
             patchDOM(document.body, savedDoc.body);
           }
         }
+        console.log('[CMS Sync] ✅ Live site patched from Supabase data.');
       }
     }
   } catch (err) {
-    console.error('Error loading CMS content:', err);
+    console.error('[CMS Sync] Error loading CMS content:', err);
   }
 }
 
-// Load content on page load
+// ─────────────────────────────────────────────────────────
+// 📡 BroadcastChannel — Instant same-browser tab sync
+// When the Admin presses "Save & Publish", it broadcasts
+// a message on this channel. Any open live site tab picks
+// it up immediately and refreshes content from Supabase.
+// ─────────────────────────────────────────────────────────
+if (typeof BroadcastChannel !== 'undefined') {
+  try {
+    const syncChannel = new BroadcastChannel('scrollz-cms-sync');
+    syncChannel.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'CONTENT_UPDATED') {
+        console.log('[CMS Sync] 📡 Admin published! Syncing live site instantly...');
+        loadCMSContent();
+      }
+    });
+    console.log('[CMS Sync] BroadcastChannel listener active.');
+  } catch (e) {
+    console.warn('[CMS Sync] BroadcastChannel not available:', e);
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// 🔴 Supabase Realtime — Cross-device / cross-browser sync
+// NOTE: For this to work, you must enable Realtime on the
+// site_settings table in your Supabase Dashboard:
+//   Database → Replication → Enable for site_settings
+// ─────────────────────────────────────────────────────────
+try {
+  client
+    .channel('scrollz_site_settings_changes')
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'site_settings' },
+      (payload) => {
+        console.log('[CMS Realtime] 🔴 Database update detected — patching live DOM...');
+        loadCMSContent();
+      }
+    )
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('[CMS Realtime] ✅ Realtime subscription active.');
+      }
+    });
+} catch (e) {
+  console.warn('[CMS Realtime] Subscription warning:', e);
+}
+
+// Load content on initial page load (for public visitors arriving fresh)
 window.addEventListener('load', () => {
   setTimeout(loadCMSContent, 400);
 });
-
-// REAL-TIME SUPABASE SUBSCRIPTION: Listen for live database updates
-try {
-  client.channel('site_settings_realtime')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'site_settings' }, payload => {
-      console.log('[CMS Realtime] Database change detected — patching live DOM in real time!');
-      loadCMSContent();
-    })
-    .subscribe();
-} catch(e) {
-  console.warn('[CMS Realtime] Subscription warning:', e);
-}
