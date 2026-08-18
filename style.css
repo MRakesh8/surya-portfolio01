@@ -1055,3 +1055,5 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Outfit', sans-serif; line-height: 1.1; fo
   color: #fff;
   box-shadow: 0 8px 20px rgba(121, 50, 236, 0.35);
 }
+v e r c e l - l i v e - f e e d b a c k ,   # _ _ f r a m e r - b a d g e - c o n t a i n e r ,   . _ _ f r a m e r - b a d g e ,   # v e r c e l - t o o l b a r ,   . v e r c e l - t o o l b a r ,   [ d a t a - v e r c e l - e d i t - b u t t o n ] ,   . v e r c e l - v i s u a l - e d i t i n g   {   d i s p l a y :   n o n e   ! i m p o r t a n t ;   p o i n t e r - e v e n t s :   n o n e   ! i m p o r t a n t ;   } 
+vercel-live-feedback, #__framer-badge-container, .__framer-badge, #vercel-toolbar, .vercel-toolbar, [data-vercel-edit-button], .vercel-visual-editing { display: none !important; pointer-events: none !important; }
