@@ -285,15 +285,25 @@
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
   }
 
+  function isNodeVisible(node) {
+    if (!node || node.nodeType !== 1) return false;
+    var style = window.getComputedStyle(node);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+    if (node.offsetWidth === 0 && node.offsetHeight === 0) return false;
+    return true;
+  }
+
   function findVideoInTree(el, clickX, clickY) {
-    if (el && el.tagName === 'VIDEO') return el;
+    if (el && el.tagName === 'VIDEO' && isNodeVisible(el)) return el;
     
     // 1. Check all elements under cursor via DOM elementsFromPoint (handles z-index and overlays naturally)
     if (typeof clickX === 'number' && typeof clickY === 'number' && document.elementsFromPoint) {
       try {
         var elements = document.elementsFromPoint(clickX, clickY);
         for (var i = 0; i < elements.length; i++) {
-          if (elements[i].tagName === 'VIDEO') return elements[i];
+          if (elements[i].tagName === 'VIDEO' && isNodeVisible(elements[i])) {
+            return elements[i];
+          }
         }
       } catch(e) {}
     }
@@ -302,11 +312,12 @@
     var node = el;
     var depth = 0;
     while (node && !isRootContainer(node) && depth < 20) {
-      if (node.tagName === 'VIDEO') return node;
+      if (node.tagName === 'VIDEO' && isNodeVisible(node)) return node;
       
       var nodeVideos = node.querySelectorAll ? node.querySelectorAll('video') : [];
       for (var v = 0; v < nodeVideos.length; v++) {
         var vid = nodeVideos[v];
+        if (!isNodeVisible(vid)) continue;
         
         // Spatial match
         if (typeof clickX === 'number' && typeof clickY === 'number') {
@@ -337,7 +348,7 @@
     // 3. Fallback: child check
     if (el && el.children) {
       for (var c = 0; c < el.children.length; c++) {
-        if (el.children[c].tagName === 'VIDEO') return el.children[c];
+        if (el.children[c].tagName === 'VIDEO' && isNodeVisible(el.children[c])) return el.children[c];
       }
     }
     return null;
@@ -379,13 +390,6 @@
 
     // 2. Locate video, img, and text in component tree
     var treeVideo = (el.tagName === 'VIDEO') ? el : findVideoInTree(el, clickX, clickY);
-    // Fallback: if no video found but card exists, find first video
-    if (!treeVideo && card) {
-      var cardVideos = card.querySelectorAll('video');
-      if (cardVideos.length === 1) {
-        treeVideo = cardVideos[0];
-      }
-    }
     var treeImg   = (el.tagName === 'IMG')   ? el : findImgInTree(el, 10)   || (card ? card.querySelector('img') : null);
 
     var targetText = null;
