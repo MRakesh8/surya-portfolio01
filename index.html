@@ -9,10 +9,53 @@
 	</style>
 	
 	
-	<script>try{if(localStorage.getItem("__framer_force_showing_editorbar_since")){const n=document.createElement("link");n.rel = "modulepreload";n.href="https://framer.com/edit/init.mjs";document.head.appendChild(n)}}catch(e){}</script>
+	<script>try { localStorage.removeItem("__framer_force_showing_editorbar_since"); localStorage.removeItem("__framer-badge"); } catch (e) {}</script>
 	<!-- Start of headStart -->
     
     <!-- End of headStart -->
+
+        <script>
+            // Aggressive visual editor remover
+            (function() {
+                function removeAnnoyingBadges() {
+                    const selectors = [
+                        'vercel-live-feedback', 
+                        'vercel-visual-editing',
+                        '#__framer-badge-container',
+                        '.__framer-badge',
+                        'a[href*="framer.com/projects"]',
+                        '[data-vercel-edit-button]',
+                        '#vercel-toolbar'
+                    ];
+                    
+                    selectors.forEach(sel => {
+                        document.querySelectorAll(sel).forEach(el => el.remove());
+                    });
+                    
+                    // Also find elements with high z-index and fixed position that contain 'Edit Content'
+                    const allDivs = document.querySelectorAll('div, button, a');
+                    allDivs.forEach(el => {
+                        const style = window.getComputedStyle(el);
+                        if ((style.position === 'fixed' || style.position === 'absolute') && 
+                            parseInt(style.zIndex) > 1000) {
+                            if (el.innerHTML.includes('Edit Content') || el.innerHTML.includes('framer.com/edit') || el.innerHTML.includes('vercel.com')) {
+                                el.remove();
+                            }
+                        }
+                    });
+                }
+
+                // Run immediately and repeatedly
+                removeAnnoyingBadges();
+                document.addEventListener('DOMContentLoaded', removeAnnoyingBadges);
+                window.addEventListener('load', removeAnnoyingBadges);
+                
+                // Keep checking just in case it's injected late
+                setInterval(removeAnnoyingBadges, 500);
+            })();
+        </script>
+            
+        
 	<meta name="viewport" content="width=device-width">
 	<meta name="generator" content="Framer 66afc79">
 	<title>Scrollz</title>
