@@ -55,8 +55,16 @@ function patchDOM(liveNode, savedNode) {
       return;
     }
 
-    // 2. Sync visual, text styling, and media attributes across ALL elements
-    const attrsToSync = ['class', 'style', 'src', 'srcset', 'href', 'poster'];
+    if (liveNode.tagName === 'VIDEO') {
+      console.log('[CMS Sync Debug] Patching video tag:', {
+        liveSrc: liveNode.getAttribute('src'),
+        savedSrc: savedNode.getAttribute('src'),
+        liveVidId: liveNode.getAttribute('data-video-id'),
+        savedVidId: savedNode.getAttribute('data-video-id')
+      });
+    }
+
+    const attrsToSync = ['class', 'style', 'src', 'srcset', 'href', 'poster', 'data-video-id'];
 
     attrsToSync.forEach(attrName => {
       if (savedNode.hasAttribute(attrName)) {
@@ -74,7 +82,7 @@ function patchDOM(liveNode, savedNode) {
           }
         }
       } else {
-        if (liveNode.hasAttribute(attrName)) {
+        if (attrName !== 'data-video-id' && liveNode.hasAttribute(attrName)) {
           liveNode.removeAttribute(attrName);
         }
       }
@@ -97,6 +105,43 @@ function patchDOM(liveNode, savedNode) {
         }
       }
     }
+  }
+}
+
+function syncAllVideoAttributes(liveRoot, savedRoot) {
+  if (!liveRoot || !savedRoot) return;
+  const liveVideos = Array.from(liveRoot.querySelectorAll('video'));
+  const savedVideos = Array.from(savedRoot.querySelectorAll('video'));
+  
+  const minVids = Math.min(liveVideos.length, savedVideos.length);
+  for (let i = 0; i < minVids; i++) {
+    const liveVid = liveVideos[i];
+    const savedVid = savedVideos[i];
+    
+    const attrsToSync = ['src', 'poster', 'data-video-id'];
+    attrsToSync.forEach(attrName => {
+      if (savedVid.hasAttribute(attrName)) {
+        const val = savedVid.getAttribute(attrName);
+        if (liveVid.getAttribute(attrName) !== val) {
+          if (attrName === 'src') {
+            liveVid.setAttribute('src', val);
+            // Re-load and play the video to sync sources instantly
+            try {
+              liveVid.load();
+              liveVid.play().catch(() => {});
+            } catch(e) {}
+          } else {
+            liveVid.setAttribute(attrName, val);
+          }
+        }
+      } else {
+        if (attrName !== 'data-video-id') {
+          if (liveVid.hasAttribute(attrName)) {
+            liveVid.removeAttribute(attrName);
+          }
+        }
+      }
+    });
   }
 }
 
@@ -129,6 +174,7 @@ async function loadCMSContent() {
 
         if (liveMain && savedMain) {
           patchDOM(liveMain, savedMain);
+          syncAllVideoAttributes(liveMain, savedMain);
         } else {
           // Try Framer root or site-wrapper
           const liveRoot =
@@ -142,9 +188,11 @@ async function loadCMSContent() {
 
           if (liveRoot && savedRoot) {
             patchDOM(liveRoot, savedRoot);
+            syncAllVideoAttributes(liveRoot, savedRoot);
           } else {
             // Full body patch as final fallback
             patchDOM(document.body, savedDoc.body);
+            syncAllVideoAttributes(document.body, savedDoc.body);
           }
         }
         console.log('[CMS Sync] ✅ Live site patched from Supabase data.');

@@ -237,6 +237,43 @@
       case 'REQUEST_SAVE':    doSave(); break;
       case 'DESELECT':        clearSelection(); resumePausedVideo(); break;
       case 'RESET_DEFAULT':   doResetDefault(); break;
+      case 'REQUEST_VIDEO_LIST':
+        if (window.VideoManager) {
+          var list = window.VideoManager.getGroupedVideos();
+          window.parent.postMessage({ type: 'VIDEO_LIST', list: list }, '*');
+          updateVideoBadges();
+        }
+        break;
+      case 'HIGHLIGHT_VIDEO':
+        if (window.VideoManager) {
+          var vids = window.VideoManager.getResponsiveVariants(msg.logicalVideoId);
+          if (vids && vids.length > 0) {
+            var visible = vids.find(function(v) { return isNodeVisible(v.element); }) || vids[0];
+            if (visible && visible.element) {
+              visible.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              var oldOutline = visible.element.style.outline;
+              var oldTransition = visible.element.style.transition;
+              visible.element.style.transition = 'outline 0.2s ease-in-out';
+              visible.element.style.outline = '6px solid #ff00ff';
+              setTimeout(function() {
+                visible.element.style.outline = oldOutline;
+                setTimeout(function() { visible.element.style.transition = oldTransition; }, 200);
+              }, 1500);
+            }
+          }
+        }
+        break;
+      case 'ASSIGN_VIDEO_ID':
+        if (window.VideoManager && msg.trackingId && msg.newId) {
+          var success = window.VideoManager.assignVideoId(msg.trackingId, msg.newId);
+          if (success) {
+            var list2 = window.VideoManager.getGroupedVideos();
+            window.parent.postMessage({ type: 'VIDEO_LIST', list: list2 }, '*');
+            updateVideoBadges();
+            notifyHistoryState();
+          }
+        }
+        break;
     }
   });
 
@@ -631,18 +668,22 @@
 
     // Use VideoManager for robust video replacement
     var targetVideoId = explicitLogicalVideoId || window.lastSelectedVideoId;
-    if (isVideoUrl && targetVideoId && window.VideoManager) {
-      var result = window.VideoManager.replaceSelected(targetVideoId, cleanUrl);
-      if (result.success) {
-        notifyHistoryState();
-        window.parent.postMessage({ 
-          type: 'REPLACEMENT_SUCCESS', 
-          message: 'Video ' + (result.friendlyName || window.lastSelectedVideoId) + ' replaced successfully. Updated variants: ' + result.variants.join(', ')
-        }, '*');
+    if (isVideoUrl) {
+      if (targetVideoId && window.VideoManager) {
+        var result = window.VideoManager.replaceSelected(targetVideoId, cleanUrl);
+        if (result.success) {
+          notifyHistoryState();
+          window.parent.postMessage({ 
+            type: 'REPLACEMENT_SUCCESS', 
+            message: 'Video ' + (result.friendlyName || window.lastSelectedVideoId) + ' replaced successfully. Updated variants: ' + result.variants.join(', ')
+          }, '*');
+        } else {
+          window.parent.postMessage({ type: 'SAVE_ERROR', message: 'Failed to resolve permanent Video ID: ' + targetVideoId + '. Replacement aborted.' }, '*');
+        }
       } else {
-        window.parent.postMessage({ type: 'SAVE_ERROR', message: 'Failed to replace video: ' + result.error }, '*');
+        window.parent.postMessage({ type: 'SAVE_ERROR', message: 'No permanent Video ID found for selected video. Cannot securely replace.' }, '*');
       }
-      return;
+      return; // STop execution for videos. No DOM guessing fallback allowed.
     }
 
     // Multi-stage target resolution (fallback for images/text or if VideoManager fails)
@@ -837,6 +878,38 @@
     }
   }
 
+  function updateVideoBadges() {
+    document.querySelectorAll('.ve-video-badge').forEach(function(b) { b.remove(); });
+    if (!window.VideoManager) return;
+    var list = window.VideoManager.getGroupedVideos();
+    list.forEach(function(v) {
+      if (v.isUnassigned) return;
+      var els = document.querySelectorAll('[data-video-id="' + v.id + '"]');
+      els.forEach(function(el) {
+        if (!isNodeVisible(el)) return;
+        var rect = el.getBoundingClientRect();
+        var badge = document.createElement('div');
+        badge.className = 've-video-badge';
+        badge.textContent = v.id;
+        badge.style.position = 'absolute';
+        // Use page coordinates for absolute positioning
+        badge.style.top = (rect.top + window.scrollY + 8) + 'px';
+        badge.style.left = (rect.left + window.scrollX + 8) + 'px';
+        badge.style.background = '#7932ec';
+        badge.style.color = '#fff';
+        badge.style.padding = '4px 8px';
+        badge.style.borderRadius = '4px';
+        badge.style.fontSize = '11px';
+        badge.style.fontWeight = 'bold';
+        badge.style.fontFamily = 'monospace';
+        badge.style.zIndex = '99999';
+        badge.style.pointerEvents = 'none';
+        badge.style.boxShadow = '0 2px 8px rgba(0,0,0,0.5)';
+        document.body.appendChild(badge);
+      });
+    });
+  }
+
   /* ── SAVE ── */
   function doSave() {
     try {
@@ -844,6 +917,7 @@
       var clone = document.body.cloneNode(true);
       var badge = clone.querySelector('#__framer-badge-container');
       if (badge) badge.remove();
+      clone.querySelectorAll('.ve-video-badge').forEach(function(b) { b.remove(); });
       clone.querySelectorAll('[data-ve-sel], [data-ve-active-target]').forEach(function(n) {
         n.removeAttribute('data-ve-sel');
         n.removeAttribute('data-ve-active-target');

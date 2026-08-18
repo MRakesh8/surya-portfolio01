@@ -1,28 +1,35 @@
 (function() {
-  // Simple UUID polyfill if crypto.randomUUID is not available
-  function uuidv4() {
-    if (window.crypto && window.crypto.randomUUID) {
-      return window.crypto.randomUUID();
+  function sanitize(str) {
+    var hash = 0;
+    for (var i = 0; i < str.length; i++) {
+      var char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
     }
-    return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, function(c) {
-      return (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16);
-    });
+    return Math.abs(hash).toString(36);
   }
 
-  // Generate a structural path string relative to a given root node
-  function getRelativePath(videoNode, rootNode) {
+  var EXCLUDED_NAMES = [
+    'desktop', 'tablet', 'mobile', 
+    'mobile edited', 'mobile raw', 
+    'edited', 'raw', 
+    'default', 'primary', 'variant 2', 'variant 1'
+  ];
+
+  function getLogicalPath(node, rootNode) {
     var path = [];
-    var current = videoNode;
+    var current = node;
     while (current && current !== rootNode && current !== document.body) {
-      var identifier = current.getAttribute('data-framer-name') || current.className || current.tagName;
-      // Strip out volatile ssr-variant or hidden classes to ensure path matches across breakpoints
-      if (typeof identifier === 'string') {
-        identifier = identifier.replace(/hidden-[a-zA-Z0-9_-]+/g, '').replace(/ssr-variant/g, '').trim();
+      var framerName = current.getAttribute('data-framer-name');
+      if (framerName) {
+        var lowerName = framerName.toLowerCase().trim();
+        if (EXCLUDED_NAMES.indexOf(lowerName) === -1) {
+          path.push(framerName);
+        }
       }
-      path.push(identifier);
       current = current.parentElement;
     }
-    return path.join(' < ');
+    return path.reverse().join(' > ');
   }
 
   var VideoManager = {
@@ -31,20 +38,14 @@
     scanVideos: function() {
       this.videos = [];
       var videoElements = document.querySelectorAll('video');
+      var variantIndexCounters = {};
+      var collisionMap = {};
       
       videoElements.forEach(function(vid) {
-        // 1. Assign permanent ID if missing
-        var id = vid.getAttribute('data-ve-video-id');
-        if (!id) {
-          id = 'vid-' + uuidv4();
-          vid.setAttribute('data-ve-video-id', id);
-        }
-
-        // 2. Identify Logical Component Container (the parent of desktop/tablet/mobile layer)
         var current = vid;
         var logicalContainer = null;
+        var variantWrapper = null;
         var variantName = 'default';
-        var friendlyName = 'Video';
 
         while (current && current !== document.body) {
           var framerName = current.getAttribute('data-framer-name');
@@ -52,54 +53,130 @@
             var lowerName = framerName.toLowerCase();
             if (lowerName === 'desktop' || lowerName === 'tablet' || lowerName === 'mobile') {
               variantName = lowerName;
+              variantWrapper = current;
               logicalContainer = current.parentElement;
-              // Grab a friendly name from the container if possible
-              if (logicalContainer && logicalContainer.getAttribute('data-framer-name')) {
-                friendlyName = logicalContainer.getAttribute('data-framer-name');
-              } else if (logicalContainer && logicalContainer.parentElement && logicalContainer.parentElement.getAttribute('data-framer-name')) {
-                friendlyName = logicalContainer.parentElement.getAttribute('data-framer-name');
-              }
               break;
-            } else if (friendlyName === 'Video') {
-              friendlyName = framerName; // Fallback friendly name if no breakpoint found yet
             }
           }
           current = current.parentElement;
         }
 
         if (!logicalContainer) {
-          logicalContainer = vid; // No responsive wrappers found, it is its own container
+          logicalContainer = vid;
+          variantWrapper = vid;
         }
 
-        // The structural identity is the physical container DOM node + the relative path down to the video
-        var relativePath = getRelativePath(vid, logicalContainer);
+        var logicalPath = getLogicalPath(vid, logicalContainer);
+        var containerPath = getLogicalPath(logicalContainer, document.body);
+        var baseIdentity = containerPath + '|' + logicalPath;
+
+        var indexKey = variantName + '|' + baseIdentity;
+        if (variantIndexCounters[indexKey] === undefined) {
+          variantIndexCounters[indexKey] = 0;
+        } else {
+          variantIndexCounters[indexKey]++;
+        }
+        var index = variantIndexCounters[indexKey];
+
+        // 1. Prioritize permanent Video ID if it exists in the DOM
+        var logicalVideoId = vid.getAttribute('data-video-id');
+        var isUnassigned = !logicalVideoId;
         
-        this.videos.push({
-          id: id,
+        // 2. Tracking ID for unassigned videos (so we can assign them later)
+        var trackingId = logicalVideoId || ('temp_' + sanitize(containerPath) + '_' + sanitize(logicalPath) + '_' + index);
+        
+        if (logicalVideoId) {
+          vid.setAttribute('data-ve-video-id', logicalVideoId);
+        }
+
+        // Collision safety check
+        var collisionKey = variantName + '|' + trackingId;
+        if (collisionMap[collisionKey]) {
+          console.error("VIDEO TRACKING ID COLLISION", {
+            trackingId: trackingId,
+            firstVideo: collisionMap[collisionKey].element,
+            secondVideo: vid
+          });
+        }
+
+        var videoObj = {
+          logicalVideoId: logicalVideoId,
+          trackingId: trackingId,
+          isUnassigned: isUnassigned,
           element: vid,
-          containerNode: logicalContainer,
-          relativePath: relativePath,
-          variant: variantName,
-          friendlyName: friendlyName,
+          variantName: variantName,
+          friendlyName: (logicalVideoId || 'Unassigned Video') + ' (' + (logicalPath || containerPath.split(' > ').pop() || 'Video') + ')',
+          containerPath: containerPath,
+          logicalPath: logicalPath,
+          index: index,
           src: vid.getAttribute('src') || (vid.querySelector('source') ? vid.querySelector('source').getAttribute('src') : '')
-        });
+        };
+
+        collisionMap[collisionKey] = videoObj;
+        this.videos.push(videoObj);
       }.bind(this));
 
-      console.log('[VideoManager] Scanned ' + this.videos.length + ' videos.');
+      console.log('[VideoManager] Scanned ' + this.videos.length + ' physical videos.');
       return this.videos;
     },
 
-    getVideoById: function(id) {
-      // Always rescan to ensure we have fresh DOM elements, but IDs stay stable
+    getGroupedVideos: function() {
       this.scanVideos();
-      return this.videos.filter(function(v) { return v.id === id; })[0] || null;
+      var groups = {};
+      this.videos.forEach(function(v) {
+        var key = v.logicalVideoId || v.trackingId;
+        if (!groups[key]) {
+          groups[key] = {
+            id: v.logicalVideoId,
+            trackingId: v.trackingId,
+            isUnassigned: v.isUnassigned,
+            friendlyName: v.friendlyName.split(' (')[1].replace(')', '') || 'Video',
+            src: v.src,
+            variants: []
+          };
+        }
+        if (groups[key].variants.indexOf(v.variantName) === -1) {
+          groups[key].variants.push(v.variantName);
+        }
+      });
+      var list = [];
+      for (var k in groups) {
+        list.push(groups[k]);
+      }
+      return list;
     },
 
-    getResponsiveVariants: function(videoObj) {
-      // Find all videos that share the exact same physical logical container AND relative internal path
-      return this.videos.filter(function(v) {
-        return v.containerNode === videoObj.containerNode && v.relativePath === videoObj.relativePath;
+    assignVideoId: function(trackingId, newId) {
+      this.scanVideos();
+      var assignedCount = 0;
+      this.videos.forEach(function(v) {
+        if (v.trackingId === trackingId && v.isUnassigned) {
+          v.element.setAttribute('data-video-id', newId);
+          v.element.setAttribute('data-ve-video-id', newId);
+          assignedCount++;
+        }
       });
+      return assignedCount > 0;
+    },
+
+    getVideoById: function(id) {
+      this.scanVideos();
+      for (var i = 0; i < this.videos.length; i++) {
+        if (this.videos[i].logicalVideoId === id) {
+          return this.videos[i];
+        }
+      }
+      return null;
+    },
+
+    getResponsiveVariants: function(logicalVideoId) {
+      var variants = [];
+      for (var i = 0; i < this.videos.length; i++) {
+        if (this.videos[i].logicalVideoId === logicalVideoId) {
+          variants.push(this.videos[i]);
+        }
+      }
+      return variants;
     },
 
     replaceSelected: function(id, newUrl) {
@@ -109,7 +186,7 @@
         return { success: false, error: 'Video not found' };
       }
 
-      var variants = this.getResponsiveVariants(selected);
+      var variants = this.getResponsiveVariants(id);
       var replacedCount = 0;
       var replacedVariants = [];
 
@@ -136,14 +213,15 @@
         el.play().catch(function(){});
         
         replacedCount++;
-        replacedVariants.push(v.variant);
+        replacedVariants.push(v.variantName);
       });
 
       return {
         success: true,
         replacedCount: replacedCount,
         variants: replacedVariants,
-        friendlyName: selected.friendlyName
+        friendlyName: selected.friendlyName,
+        logicalVideoId: id
       };
     },
 

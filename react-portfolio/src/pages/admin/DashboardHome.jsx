@@ -47,19 +47,6 @@ function ContextMenu({ menu, onAction, onClose }) {
           {headerLabel}
         </div>
 
-        {/* DEDICATED VIDEO EDIT OPTION */}
-        {hasVideo && (
-          <div style={{marginBottom:'4px'}}>
-            <div style={{padding:'4px 12px 2px',fontSize:'10px',fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'0.5px'}}>
-              Video Edit Option
-            </div>
-            <button style={{...btnBase,color:'#fff',background:'rgba(121,50,236,0.2)'}} onClick={()=>onAction('REPLACE_MEDIA')}
-              onMouseEnter={e=>hoverIn(e)} onMouseLeave={e=>e.currentTarget.style.background='rgba(121,50,236,0.2)'}>
-              <span style={{fontSize:'16px'}}>🎬</span> Replace Video
-            </button>
-          </div>
-        )}
-
         {/* DEDICATED IMAGE EDIT OPTION */}
         {hasImage && !hasVideo && (
           <div style={{marginBottom:'4px'}}>
@@ -168,6 +155,9 @@ export default function DashboardHome() {
   const [menu, setMenu] = useState({ visible:false, x:0, y:0, isMedia:false, hasVideo:false, hasImage:false, hasText:true, tag:'', logicalVideoId:null });
   const [inputModal, setInputModal] = useState(null);
   const [status, setStatus] = useState('waiting'); // 'waiting' | 'ready' | 'clicked'
+  const [showVideoManager, setShowVideoManager] = useState(false);
+  const [videoList, setVideoList] = useState([]);
+  const [replacingVideoId, setReplacingVideoId] = useState(null);
 
   const iframeSrc = `${selectedPage.path}?admin=true&t=${iframeVersion}`;
 
@@ -199,6 +189,10 @@ export default function DashboardHome() {
     const handle = (event) => {
       if (!event.data || typeof event.data !== 'object') return;
       const msg = event.data;
+
+      if (msg.type === 'VIDEO_LIST') {
+        setVideoList(msg.list);
+      }
 
       if (msg.type === 'IFRAME_READY') {
         console.log('[Admin] iframe is ready!');
@@ -315,10 +309,15 @@ export default function DashboardHome() {
   }, [inputModal, postToIframe]);
 
   const handleMediaSelect = useCallback((url) => {
-    postToIframe({ type:'MEDIA_SELECTED', logicalVideoId: menu.logicalVideoId, url });
+    if (replacingVideoId) {
+      postToIframe({ type:'MEDIA_SELECTED', logicalVideoId: replacingVideoId, url });
+      setReplacingVideoId(null);
+    } else {
+      postToIframe({ type:'MEDIA_SELECTED', logicalVideoId: menu.logicalVideoId, url });
+    }
     setShowMediaModal(false);
     setSaveState('unsaved');
-  }, [postToIframe, menu.logicalVideoId]);
+  }, [postToIframe, menu.logicalVideoId, replacingVideoId]);
 
   const requestUndo = () => postToIframe({ type: 'UNDO' });
   const requestRedo = () => postToIframe({ type: 'REDO' });
@@ -452,6 +451,11 @@ export default function DashboardHome() {
 
           {/* Action Toolbar: Undo, Redo, Reset Default, Save */}
           <div style={{display:'flex',gap:'6px'}}>
+            <button onClick={() => { setShowVideoManager(true); postToIframe({type: 'REQUEST_VIDEO_LIST'}); }} style={{
+              background:'#111',border:'1px solid #333',color:'#fff',
+              padding:'6px 12px',borderRadius:'8px',cursor:'pointer',fontSize:'12px',fontWeight:600
+            }} title="Manage permanent Video IDs">🎬 Video ID Manager</button>
+
             <button onClick={requestUndo} disabled={!canUndo} style={{
               background:'#111',border:'1px solid #333',color: canUndo?'#fff':'#555',
               padding:'6px 12px',borderRadius:'8px',cursor: canUndo?'pointer':'default',fontSize:'12px',fontWeight:600
@@ -516,6 +520,62 @@ export default function DashboardHome() {
       <ContextMenu menu={menu} onAction={handleMenuAction} onClose={handleCloseMenu} />
       {inputModal && <InputModal prompt={inputModal.prompt} placeholder={inputModal.placeholder}
         onConfirm={handleInputConfirm} onCancel={()=>setInputModal(null)} />}
+      {showVideoManager && (
+        <div style={{position:'fixed',inset:0,zIndex:100000,background:'rgba(0,0,0,0.8)',display:'flex',justifyContent:'flex-end'}}>
+          <div style={{width:'400px',background:'#0a0a0e',borderLeft:'1px solid #333',display:'flex',flexDirection:'column',color:'#fff',boxShadow:'-10px 0 30px rgba(0,0,0,0.5)'}}>
+            <div style={{padding:'20px',borderBottom:'1px solid #222',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <h3 style={{margin:0,fontSize:'18px',fontFamily:'Inter',display:'flex',alignItems:'center',gap:'8px'}}>🎬 Video ID Manager</h3>
+              <button onClick={()=>setShowVideoManager(false)} style={{background:'transparent',border:'none',color:'#888',fontSize:'20px',cursor:'pointer'}}>×</button>
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:'20px',display:'flex',flexDirection:'column',gap:'16px'}}>
+              {videoList.length === 0 ? <p style={{color:'#888',fontSize:'14px',textAlign:'center'}}>No videos found.</p> : null}
+              {videoList.map(v => (
+                <div key={v.id || v.trackingId} style={{background:'#111',border:'1px solid #222',borderRadius:'10px',padding:'16px'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'12px'}}>
+                    <div>
+                      <div style={{color:v.isUnassigned?'#ef4444':'#7932ec',fontWeight:700,fontSize:'12px',fontFamily:'monospace',marginBottom:'4px'}}>{v.id || 'Unassigned Video'}</div>
+                      <div style={{fontWeight:600,fontSize:'14px',color:'#e5e5e5'}}>{v.friendlyName}</div>
+                    </div>
+                  </div>
+                  
+                  {v.src && (
+                    <div style={{width:'100%',height:'120px',background:'#000',borderRadius:'6px',marginBottom:'12px',overflow:'hidden'}}>
+                      <video src={v.src} muted loop autoPlay playsInline style={{width:'100%',height:'100%',objectFit:'cover'}}></video>
+                    </div>
+                  )}
+
+                  <div style={{fontSize:'11px',color:'#888',marginBottom:'16px',display:'flex',gap:'6px',flexWrap:'wrap'}}>
+                    {v.variants.map(variant => (
+                      <span key={variant} style={{background:'#222',padding:'2px 6px',borderRadius:'4px',textTransform:'capitalize'}}>{variant}</span>
+                    ))}
+                  </div>
+
+                  <div style={{display:'flex',gap:'8px'}}>
+                    <button onClick={()=>{
+                      postToIframe({ type: 'HIGHLIGHT_VIDEO', logicalVideoId: v.id });
+                      setShowVideoManager(false);
+                    }} style={{flex:1,background:'#222',border:'1px solid #333',color:'#ccc',padding:'8px',borderRadius:'6px',cursor:'pointer',fontSize:'12px',fontWeight:600}}>View in Editor</button>
+                    
+                    {!v.isUnassigned ? (
+                      <button onClick={()=>{
+                        setReplacingVideoId(v.id);
+                        setShowMediaModal(true);
+                      }} style={{flex:1,background:'rgba(121,50,236,0.2)',border:'1px solid rgba(121,50,236,0.5)',color:'#fff',padding:'8px',borderRadius:'6px',cursor:'pointer',fontSize:'12px',fontWeight:600}}>Replace Video</button>
+                    ) : (
+                      <button onClick={()=>{
+                        const ids = videoList.filter(x=>!x.isUnassigned && x.id.startsWith('VID-')).map(x=>parseInt(x.id.replace('VID-',''))).filter(n=>!isNaN(n));
+                        const nextNum = ids.length > 0 ? Math.max(...ids) + 1 : 1;
+                        const nextId = 'VID-' + nextNum.toString().padStart(3, '0');
+                        postToIframe({ type: 'ASSIGN_VIDEO_ID', trackingId: v.trackingId, newId: nextId });
+                      }} style={{flex:1,background:'rgba(239,68,68,0.2)',border:'1px solid rgba(239,68,68,0.5)',color:'#fff',padding:'8px',borderRadius:'6px',cursor:'pointer',fontSize:'12px',fontWeight:600}}>Assign Video ID</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {showMediaModal && <MediaLibraryModal onClose={()=>setShowMediaModal(false)} onSelect={handleMediaSelect} />}
     </div>
   );

@@ -70,7 +70,6 @@
         var containerPath = getLogicalPath(logicalContainer, document.body);
         var baseIdentity = containerPath + '|' + logicalPath;
 
-        // Track index within this specific variant wrapper for this specific base identity
         var indexKey = variantName + '|' + baseIdentity;
         if (variantIndexCounters[indexKey] === undefined) {
           variantIndexCounters[indexKey] = 0;
@@ -79,27 +78,34 @@
         }
         var index = variantIndexCounters[indexKey];
 
-        var logicalVideoId = 'v_' + sanitize(containerPath) + '_' + sanitize(logicalPath) + '_' + index;
-        vid.setAttribute('data-ve-video-id', logicalVideoId);
+        // 1. Prioritize permanent Video ID if it exists in the DOM
+        var logicalVideoId = vid.getAttribute('data-video-id');
+        var isUnassigned = !logicalVideoId;
+        
+        // 2. Tracking ID for unassigned videos (so we can assign them later)
+        var trackingId = logicalVideoId || ('temp_' + sanitize(containerPath) + '_' + sanitize(logicalPath) + '_' + index);
+        
+        if (logicalVideoId) {
+          vid.setAttribute('data-ve-video-id', logicalVideoId);
+        }
 
         // Collision safety check
-        var collisionKey = variantName + '|' + logicalVideoId;
+        var collisionKey = variantName + '|' + trackingId;
         if (collisionMap[collisionKey]) {
-          console.error("LOGICAL VIDEO ID COLLISION", {
-            logicalVideoId: logicalVideoId,
+          console.error("VIDEO TRACKING ID COLLISION", {
+            trackingId: trackingId,
             firstVideo: collisionMap[collisionKey].element,
-            secondVideo: vid,
-            containerPath: containerPath,
-            logicalPath: logicalPath,
-            index: index
+            secondVideo: vid
           });
         }
 
         var videoObj = {
           logicalVideoId: logicalVideoId,
+          trackingId: trackingId,
+          isUnassigned: isUnassigned,
           element: vid,
           variantName: variantName,
-          friendlyName: logicalPath || containerPath.split(' > ').pop() || 'Video',
+          friendlyName: (logicalVideoId || 'Unassigned Video') + ' (' + (logicalPath || containerPath.split(' > ').pop() || 'Video') + ')',
           containerPath: containerPath,
           logicalPath: logicalPath,
           index: index,
@@ -110,8 +116,47 @@
         this.videos.push(videoObj);
       }.bind(this));
 
-      console.log('[VideoManager] Scanned ' + this.videos.length + ' deterministic videos.');
+      console.log('[VideoManager] Scanned ' + this.videos.length + ' physical videos.');
       return this.videos;
+    },
+
+    getGroupedVideos: function() {
+      this.scanVideos();
+      var groups = {};
+      this.videos.forEach(function(v) {
+        var key = v.logicalVideoId || v.trackingId;
+        if (!groups[key]) {
+          groups[key] = {
+            id: v.logicalVideoId,
+            trackingId: v.trackingId,
+            isUnassigned: v.isUnassigned,
+            friendlyName: v.friendlyName.split(' (')[1].replace(')', '') || 'Video',
+            src: v.src,
+            variants: []
+          };
+        }
+        if (groups[key].variants.indexOf(v.variantName) === -1) {
+          groups[key].variants.push(v.variantName);
+        }
+      });
+      var list = [];
+      for (var k in groups) {
+        list.push(groups[k]);
+      }
+      return list;
+    },
+
+    assignVideoId: function(trackingId, newId) {
+      this.scanVideos();
+      var assignedCount = 0;
+      this.videos.forEach(function(v) {
+        if (v.trackingId === trackingId && v.isUnassigned) {
+          v.element.setAttribute('data-video-id', newId);
+          v.element.setAttribute('data-ve-video-id', newId);
+          assignedCount++;
+        }
+      });
+      return assignedCount > 0;
     },
 
     getVideoById: function(id) {
